@@ -1,0 +1,5 @@
+# Normalize line endings. Shell scripts MUST stay LF or the Docker
+# (alpine/bash) build breaks on carriage returns.
+* text=auto
+*.sh text eol=lf
+*.py text eol=lf

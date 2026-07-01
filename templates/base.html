@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Pinchive{% endblock %}</title>
+  <link rel="preconnect" href="/static">
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <script src="/static/js/htmx.min.js" defer></script>
+</head>
+<body>
+  <nav class="top-nav">
+    <div class="container">
+      <a class="brand" href="/">
+        <span class="dot"></span> Pinchive
+      </a>
+      <div class="nav-links">
+        <a class="nav-link" href="/">Boards</a>
+        <a class="nav-link" href="/credentials">Credentials</a>
+      </div>
+      <div class="nav-right">
+        <a class="btn btn-primary btn-sm" href="/#add">Add board</a>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="wordmark">Pinchive</div>
+      <div class="row row-wrap between">
+        <p class="body-sm muted">Self-hosted Pinterest board archiver · inspired by TubeArchivist</p>
+        <p class="body-sm muted-soft">gallery-dl · FastAPI · SQLite</p>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

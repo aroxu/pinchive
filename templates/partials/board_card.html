@@ -1,0 +1,63 @@
+{% set active = board.status in [BoardStatus.pending, BoardStatus.queued, BoardStatus.downloading] %}
+<div class="card board-card" id="board-{{ board.id }}"
+     {% if active %}hx-get="/boards/{{ board.id }}/card" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
+  <div class="head">
+    <div>
+      <a class="board-title" href="/boards/{{ board.id }}">{{ board.title or board.slug or "Board" }}</a>
+      <div class="board-url">{{ board.url }}</div>
+    </div>
+    {% if board.status == BoardStatus.done %}
+      <span class="badge"><span class="badge-dot dot-emerald"></span>done</span>
+    {% elif board.status == BoardStatus.downloading %}
+      <span class="badge"><span class="badge-dot dot-teal"></span>downloading</span>
+    {% elif board.status == BoardStatus.queued %}
+      <span class="badge"><span class="badge-dot dot-blue"></span>queued</span>
+    {% elif board.status == BoardStatus.pending %}
+      <span class="badge"><span class="badge-dot dot-muted"></span>waiting</span>
+    {% elif board.status == BoardStatus.partial %}
+      <span class="badge"><span class="badge-dot dot-rose"></span>partial</span>
+    {% else %}
+      <span class="badge"><span class="badge-dot dot-rose"></span>error</span>
+    {% endif %}
+  </div>
+
+  {% if board.status == BoardStatus.downloading %}
+    <div class="progress indeterminate"><span></span></div>
+  {% elif board.pin_count > 0 %}
+    <div class="progress"><span style="width:{{ board.progress_pct }}%"></span></div>
+  {% endif %}
+
+  <div class="counts">
+    <div class="count-item">
+      <span class="n">{{ board.downloaded_count }}</span>
+      <span class="k">downloaded</span>
+    </div>
+    <div class="count-item">
+      <span class="n">{{ board.skipped_count }}</span>
+      <span class="k">skipped</span>
+    </div>
+    {% if board.error_count %}
+    <div class="count-item">
+      <span class="n" style="color:var(--rose)">{{ board.error_count }}</span>
+      <span class="k">errors</span>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if board.last_error %}
+    <p class="body-sm text-rose">{{ board.last_error }}</p>
+  {% endif %}
+
+  <div class="row row-wrap" style="margin-top:auto">
+    <a class="btn btn-secondary btn-sm" href="/boards/{{ board.id }}">View pins</a>
+    {% if not active %}
+    <button class="btn btn-ghost btn-sm" hx-post="/boards/{{ board.id }}/redownload"
+            hx-target="#board-{{ board.id }}" hx-swap="outerHTML">Re-sync</button>
+    {% endif %}
+    <form method="post" action="/boards/{{ board.id }}/delete" class="grow"
+          style="display:flex;justify-content:flex-end"
+          onsubmit="return confirm('Remove this board from Pinchive?')">
+      <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+    </form>
+  </div>
+</div>

@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Pinchive — Boards{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="container">
+    <div class="hero-split">
+      <div class="stack">
+        <span class="badge-teal badge">Self-hosted</span>
+        <h1 class="display-xl">Archive any<br>Pinterest board.</h1>
+        <p class="title-md muted" style="max-width:46ch">
+          Paste a board URL. Pinchive pulls every pin — images and video — to your
+          own disk. Private boards too, with your session cookies.
+        </p>
+        <div class="counts" style="margin-top:var(--s-md)">
+          <div class="count-item">
+            <span class="n">{{ boards|length }}</span>
+            <span class="k">boards</span>
+          </div>
+          <div class="count-item">
+            <span class="n">{{ boards|sum(attribute='downloaded_count') }}</span>
+            <span class="k">pins</span>
+          </div>
+          <div class="count-item">
+            <span class="n">{{ credentials|length }}</span>
+            <span class="k">sessions</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="code-window" id="add">
+        <div class="chrome">
+          <span class="lamp"></span><span class="lamp"></span><span class="lamp"></span>
+          <span class="caption muted" style="margin-left:auto">add board</span>
+        </div>
+        <div style="padding:var(--s-lg)">
+          <form hx-post="/boards" hx-target="#board-list" hx-swap="afterbegin"
+                hx-on::after-request="if(event.detail.successful) this.reset()"
+                class="stack">
+            <label class="field">
+              <span class="lbl">Board URL</span>
+              <input class="input" name="url" required
+                     placeholder="https://www.pinterest.com/user/board/">
+            </label>
+            <label class="field">
+              <span class="lbl">Session (for private boards)</span>
+              <select class="input" name="credential_id">
+                <option value="">Public — no login</option>
+                {% for c in credentials %}
+                <option value="{{ c.id }}">{{ c.name }}
+                  {%- if c.status == CredentialStatus.expired %} (expired){% endif -%}
+                </option>
+                {% endfor %}
+              </select>
+            </label>
+            <button class="btn btn-primary" type="submit">Download board</button>
+          </form>
+        </div>
+        <div class="statusbar">POST /boards · enqueue → worker → gallery-dl</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="hr">
+
+<section class="section">
+  <div class="container">
+    <div class="row between" style="margin-bottom:var(--s-lg)">
+      <h2 class="display-sm">Your archive</h2>
+      <span class="caption-uc">{{ boards|length }} boards</span>
+    </div>
+
+    {% if not boards %}
+    <div class="card">
+      <p class="title-md">No boards yet.</p>
+      <p class="muted">Add a Pinterest board URL above to start archiving.</p>
+    </div>
+    {% endif %}
+
+    <div class="grid grid-3" id="board-list">
+      {% for board in boards %}
+        {% include "partials/board_card.html" %}
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="cta-band">
+      <div>
+        <h2 class="display-md">Keep sessions fresh.</h2>
+        <p style="opacity:.85;max-width:52ch">
+          Private boards need valid cookies. Pinchive re-checks them on a schedule
+          and flags any that expire — so a private archive never silently stops.
+        </p>
+      </div>
+      <a class="btn btn-secondary" style="background:var(--canvas);color:var(--on-dark)"
+         href="/credentials">Manage credentials</a>
+    </div>
+  </div>
+</section>
+{% endblock %}

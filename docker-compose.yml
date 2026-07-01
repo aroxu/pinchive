@@ -1,0 +1,47 @@
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "60", "1", "--appendonly", "no"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  web:
+    build: .
+    image: pinchive:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PINCHIVE_REDIS_URL: redis://redis:6379
+      PINCHIVE_DATA_DIR: /data
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  worker:
+    image: pinchive:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PINCHIVE_REDIS_URL: redis://redis:6379
+      PINCHIVE_DATA_DIR: /data
+    command: ["arq", "app.tasks.WorkerSettings"]
+    volumes:
+      - ./data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+      web:
+        condition: service_started
+
+volumes:
+  redis-data:

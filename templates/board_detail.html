@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}{{ board.title or board.slug }} — Pinchive{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="container">
+    <a class="body-sm muted" href="/">← Boards</a>
+    <div class="row between row-wrap" style="margin-top:var(--s-md)">
+      <div>
+        <h1 class="display-md">{{ board.title or board.slug or "Board" }}</h1>
+        <a class="board-url" href="{{ board.url }}" target="_blank" rel="noopener">{{ board.url }}</a>
+      </div>
+      <div class="row">
+        <div class="count-item">
+          <span class="stat-sm">{{ pins|length }}</span>
+          <span class="k muted caption-uc">pins on disk</span>
+        </div>
+        <button class="btn btn-primary btn-sm" hx-post="/boards/{{ board.id }}/redownload"
+                hx-target="this" hx-swap="none">Re-sync</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+{% if board.log_tail %}
+<section class="section" style="padding-top:0">
+  <div class="container">
+    <div class="code-window">
+      <div class="chrome">
+        <span class="lamp"></span><span class="lamp"></span><span class="lamp"></span>
+        <span class="caption muted" style="margin-left:auto">gallery-dl · log tail</span>
+      </div>
+      <pre>{{ board.log_tail }}</pre>
+      <div class="statusbar">
+        {{ board.downloaded_count }} downloaded · {{ board.skipped_count }} skipped
+        {%- if board.error_count %} · <span style="color:var(--rose)">{{ board.error_count }} errors</span>{% endif %}
+      </div>
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<section class="section" style="padding-top:0">
+  <div class="container">
+    {% if not pins %}
+      <div class="card">
+        <p class="title-md">No media yet.</p>
+        <p class="muted">
+          {% if board.status == BoardStatus.downloading %}Download in progress — check back shortly.
+          {% else %}Nothing downloaded. Try Re-sync, or check the log above.{% endif %}
+        </p>
+      </div>
+    {% else %}
+      <div class="pin-grid">
+        {% for pin in pins %}
+        <div class="pin">
+          {% if pin.media_type == "video" %}
+            <video src="/media/{{ pin.rel_path }}" controls preload="none"></video>
+            <span class="vtag">video</span>
+          {% else %}
+            <a href="/media/{{ pin.rel_path }}" target="_blank" rel="noopener">
+              <img loading="lazy" src="/media/{{ pin.rel_path }}"
+                   alt="{{ pin.pinterest_id or pin.filename }}">
+            </a>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}
