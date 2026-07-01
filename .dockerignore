@@ -8,5 +8,5 @@ __pycache__
 .ruff_cache
 /data
 .env
-README.md
-docs
+# NOTE: README.md is intentionally NOT ignored — pyproject `readme=` needs it
+# in the build context for `pip install .`.

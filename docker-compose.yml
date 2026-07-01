@@ -15,7 +15,9 @@ services:
     build: .
     image: pinchive:latest
     restart: unless-stopped
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     environment:
       PINCHIVE_REDIS_URL: redis://redis:6379
       PINCHIVE_DATA_DIR: /data
@@ -30,7 +32,9 @@ services:
   worker:
     image: pinchive:latest
     restart: unless-stopped
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     environment:
       PINCHIVE_REDIS_URL: redis://redis:6379
       PINCHIVE_DATA_DIR: /data

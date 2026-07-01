@@ -36,6 +36,10 @@ COPY templates ./templates
 COPY --from=assets /assets/htmx.min.js ./static/js/htmx.min.js
 COPY --from=assets /assets/fonts/ ./static/fonts/
 
+# Resolve `import app` to the /app source tree (next to templates/ + static/)
+# rather than the copy pip put in site-packages, so BASE_DIR points at /app.
+ENV PYTHONPATH=/app
+
 # Non-root.
 RUN useradd -m -u 10001 pinchive \
     && mkdir -p /data \
