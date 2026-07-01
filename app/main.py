@@ -219,10 +219,14 @@ async def add_credential(
         session.commit()
         raise HTTPException(400, f"cookie parse error: {e}") from e
 
-    res = auth.validate_cookies(auth.cookies_path(cred.id), network=True)
+    # Immediately keep-alive so rotation starts from registration.
+    from app.tasks import _now
+
+    res = auth.refresh_session(auth.cookies_path(cred.id))
     cred.status = (
         CredentialStatus.active if res.active else CredentialStatus.expired
     )
+    cred.last_checked_at = _now()
     cred.last_error = None if res.active else res.message
     session.add(cred)
     session.commit()
@@ -236,7 +240,8 @@ async def validate_credential(
     cred = session.get(Credential, cred_id)
     if cred is None:
         raise HTTPException(404, "credential not found")
-    res = auth.validate_cookies(auth.cookies_path(cred_id), network=True)
+    # Manual "Validate" also does a keep-alive: rotate + persist the cookie.
+    res = auth.refresh_session(auth.cookies_path(cred_id))
     from app.tasks import _now
 
     cred.status = CredentialStatus.active if res.active else CredentialStatus.expired

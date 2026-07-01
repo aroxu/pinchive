@@ -37,8 +37,15 @@ Downloads land in `./data/boards/<slug>/`; the SQLite db in `./data/pinchive.db`
 3. **Credentials → paste → Save & validate.**
 4. Pick that session when adding a private board.
 
-Only `_pinterest_sess` is strictly required. Sessions are re-validated daily
-(`PINCHIVE_REFRESH_HOUR`/`MINUTE`); expired ones are flagged in the UI.
+Only `_pinterest_sess` is strictly required.
+
+**Keep-alive rotation.** Every `PINCHIVE_REFRESH_EVERY_HOURS` (default 6) the
+worker makes an authenticated request per credential and **persists the rotated
+`_pinterest_sess` back to disk** — so a registered session stays alive on its
+own as long as Pinterest keeps sliding it, no re-pasting. Liveness is judged by
+the page's `is_authenticated` flag; a session that has genuinely been logged out
+server-side is flagged expired in the UI (and only a full re-login can recover
+it — see below).
 
 ### Optional auto re-login
 

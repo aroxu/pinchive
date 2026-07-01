@@ -151,10 +151,11 @@ def _last_error_line(log_tail: str | None) -> str | None:
 # credential refresh
 # --------------------------------------------------------------------------- #
 async def refresh_credential(ctx: dict, cred_id: int) -> dict:
+    """Keep-alive one credential: authenticated request + persist rotated cookies."""
     loop = asyncio.get_running_loop()
     path = auth.cookies_path(cred_id)
     res = await loop.run_in_executor(
-        None, functools.partial(auth.validate_cookies, path, network=True)
+        None, functools.partial(auth.refresh_session, path)
     )
     with session_scope() as s:
         cred = s.get(Credential, cred_id)
@@ -165,10 +166,12 @@ async def refresh_credential(ctx: dict, cred_id: int) -> dict:
         cred.last_error = None if res.active else res.message
         cred.updated_at = _now()
 
+    # Session truly dead (server-side logout / long inactivity). Cookie rotation
+    # can't help here — only a full re-login can, if configured.
     if not res.active and settings.enable_auto_refresh:
         await _attempt_auto_refresh(cred_id)
 
-    return {"active": res.active, "message": res.message}
+    return {"active": res.active, "message": res.message, "rotated": res.rotated}
 
 
 async def refresh_all_credentials(ctx: dict) -> dict:
@@ -205,7 +208,7 @@ class WorkerSettings:
     cron_jobs = [
         cron(
             refresh_all_credentials,
-            hour=settings.refresh_hour,
+            hour=settings.refresh_hours(),
             minute=settings.refresh_minute,
         )
     ]

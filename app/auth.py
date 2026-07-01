@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import http.cookiejar
 import json
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -118,6 +119,31 @@ def _json_to_netscape_lines(raw: str) -> list[str]:
 class ValidationResult:
     active: bool
     message: str
+    rotated: bool = False  # true when a keep-alive persisted refreshed cookies
+
+
+# Pinterest embeds `"is_authenticated": true|false` in the settings page's
+# initial-state JSON. That's the reliable liveness signal — the final URL is
+# not: a logged-out /settings/ still returns 200 (SPA shell) and just redirects
+# to the home page.
+_AUTH_TRUE = re.compile(r'"is_authenticated"\s*:\s*true')
+_AUTH_FALSE = re.compile(r'"is_authenticated"\s*:\s*false')
+
+
+def _classify(r: httpx.Response) -> ValidationResult:
+    if r.status_code in (401, 403):
+        return ValidationResult(False, f"unauthenticated (status {r.status_code})")
+    body = r.text
+    if _AUTH_TRUE.search(body):
+        return ValidationResult(True, "logged in")
+    if _AUTH_FALSE.search(body):
+        return ValidationResult(False, "not logged in — session invalid")
+    final = str(r.url)
+    if "/login" in final or final.rstrip("/") == "https://www.pinterest.com":
+        return ValidationResult(False, "redirected away from settings — session invalid")
+    if "/settings" in final and r.status_code == 200:
+        return ValidationResult(True, "settings reachable")
+    return ValidationResult(False, f"unknown auth state (status {r.status_code})")
 
 
 def _load_jar(path: Path) -> http.cookiejar.MozillaCookieJar:
@@ -170,9 +196,60 @@ def _network_check(jar: http.cookiejar.MozillaCookieJar) -> ValidationResult:
         # Network hiccup shouldn't flip a credential to "expired".
         return ValidationResult(True, f"cookie present; live check failed: {e}")
 
-    final = str(r.url)
-    if "/login" in final or r.status_code in (401, 403):
-        return ValidationResult(False, "redirected to login — session invalid")
-    if r.status_code == 200:
-        return ValidationResult(True, "logged in")
-    return ValidationResult(True, f"cookie present; unexpected status {r.status_code}")
+    return _classify(r)
+
+
+def refresh_session(path: Path) -> ValidationResult:
+    """Keep-alive: make an authenticated request and persist any rotated cookies.
+
+    Pinterest issues fresh `_pinterest_sess` values via Set-Cookie on activity
+    (a sliding session). We drive that jar in-place through httpx, then — only
+    when the session is confirmed live — write it back to the Netscape file so
+    gallery-dl always has the newest cookie. Run periodically (see the worker
+    cron) this keeps a registered session alive without re-pasting.
+
+    We never persist on a login-redirect: that would clobber a good cookie with
+    logged-out junk on a transient failure.
+    """
+    if not path.exists():
+        return ValidationResult(False, "no cookie file")
+    try:
+        jar = _load_jar(path)
+    except (OSError, http.cookiejar.LoadError) as e:
+        return ValidationResult(False, f"unreadable cookie file: {e}")
+
+    sess = _session_cookie(jar)
+    if sess is None:
+        return ValidationResult(False, f"missing {SESSION_COOKIE} cookie")
+    if sess.expires and sess.expires < time.time():
+        return ValidationResult(False, "session cookie expired (by date)")
+
+    # Passing the jar to httpx.Cookies makes httpx update it in place from every
+    # response's Set-Cookie.
+    cookies = httpx.Cookies(jar)
+    try:
+        with httpx.Client(
+            headers={"User-Agent": _UA},
+            cookies=cookies,
+            follow_redirects=True,
+            timeout=15.0,
+        ) as client:
+            r = client.get("https://www.pinterest.com/settings/")
+    except httpx.HTTPError as e:
+        return ValidationResult(True, f"cookie present; keep-alive failed: {e}")
+
+    verdict = _classify(r)
+    if not verdict.active:
+        # Don't persist logged-out cookies over a good file.
+        return verdict
+
+    try:
+        jar.save(str(path), ignore_discard=True, ignore_expires=True)
+        try:
+            path.chmod(0o600)
+        except OSError:
+            pass
+    except OSError as e:
+        return ValidationResult(True, f"live, but could not persist rotation: {e}")
+
+    return ValidationResult(True, "live — cookies rotated", rotated=True)
