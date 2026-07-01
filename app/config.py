@@ -30,7 +30,12 @@ class Settings(BaseSettings):
     refresh_every_hours: int = Field(default=6, ge=0, le=24)
     refresh_hour: int = Field(default=4, ge=0, le=23)
     refresh_minute: int = Field(default=0, ge=0, le=59)
-    enable_auto_refresh: bool = Field(default=False)  # optional Playwright relogin
+
+    # Optional Playwright re-login fallback: when a session is genuinely dead
+    # (server-side logout), try a headless browser login to mint fresh cookies.
+    # Off by default; requires the image built with the browser (INSTALL_PLAYWRIGHT)
+    # and a stored login profile. See docs/credential-refresh.md.
+    use_playwright_fallback: bool = Field(default=False)
 
     def refresh_hours(self) -> set[int]:
         """The set of hours the keep-alive cron fires at."""

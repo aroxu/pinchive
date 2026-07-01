@@ -12,7 +12,12 @@ services:
       retries: 5
 
   web:
-    build: .
+    build:
+      context: .
+      args:
+        # Bake Playwright + chromium into the shared image only when opted in.
+        # Set INSTALL_PLAYWRIGHT=true in .env, then `docker compose up --build`.
+        INSTALL_PLAYWRIGHT: ${INSTALL_PLAYWRIGHT:-false}
     image: pinchive:latest
     restart: unless-stopped
     env_file:

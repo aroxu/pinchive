@@ -47,12 +47,20 @@ the page's `is_authenticated` flag; a session that has genuinely been logged out
 server-side is flagged expired in the UI (and only a full re-login can recover
 it — see below).
 
-### Optional auto re-login
+### Optional Playwright re-login fallback
 
-Set `PINCHIVE_ENABLE_AUTO_REFRESH=true`, install the extra
-(`pip install .[refresh] && playwright install chromium`), and drop a
-`data/cookies/<id>.login.json` with `{"account","password"}`. Best-effort only —
-captcha/2FA will defeat it. See [app/refresh_browser.py](app/refresh_browser.py).
+For sessions that die server-side (rotation can't help there), an opt-in
+headless-browser re-login can mint fresh cookies. Off by default. Enable via two
+`.env` switches and a rebuild:
+
+```dotenv
+INSTALL_PLAYWRIGHT=true                 # build: bake chromium into the image
+PINCHIVE_USE_PLAYWRIGHT_FALLBACK=true   # run:  attempt re-login on a dead session
+```
+
+Best-effort only — captcha/2FA will defeat it, and it stores a password on disk.
+Full setup (login profile, local install, switch matrix):
+**[docs/credential-refresh.md](docs/credential-refresh.md)**.
 
 ## Local dev (no Docker)
 

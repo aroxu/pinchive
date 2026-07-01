@@ -168,7 +168,7 @@ async def refresh_credential(ctx: dict, cred_id: int) -> dict:
 
     # Session truly dead (server-side logout / long inactivity). Cookie rotation
     # can't help here — only a full re-login can, if configured.
-    if not res.active and settings.enable_auto_refresh:
+    if not res.active and settings.use_playwright_fallback:
         await _attempt_auto_refresh(cred_id)
 
     return {"active": res.active, "message": res.message, "rotated": res.rotated}

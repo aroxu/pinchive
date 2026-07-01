@@ -1,11 +1,13 @@
 """Optional Playwright-based automatic re-login.
 
-This module is imported lazily by app.tasks only when PINCHIVE_ENABLE_AUTO_REFRESH
-is true. It is a scaffold: storing an account password and driving a headless
-login is inherently fragile (Pinterest changes markup, adds captchas / 2FA), so
-treat this as a best-effort convenience, not a guarantee.
+This module is imported lazily by app.tasks only when
+PINCHIVE_USE_PLAYWRIGHT_FALLBACK is true. It is a scaffold: storing an account
+password and driving a headless login is inherently fragile (Pinterest changes
+markup, adds captchas / 2FA), so treat this as a best-effort convenience, not a
+guarantee.
 
-Requires the `refresh` extra:  pip install .[refresh] && playwright install chromium
+Requires an image built with INSTALL_PLAYWRIGHT=true (or, locally,
+`pip install .[refresh] && playwright install chromium`).
 Passwords, if used, are read from  {cookies_dir}/{cred_id}.login.json
     {"account": "...", "password": "...", "otp_secret": null}
 """
