@@ -114,6 +114,8 @@ async def download_board(ctx: dict, board_id: int) -> dict:
         board.pin_count = len(result.media)
         board.dest_path = str(result.dest)
         board.log_tail = result.log_tail
+        if result.board_name:
+            board.title = result.board_name  # real Pinterest name (e.g. Korean)
         board.finished_at = _now()
         board.updated_at = _now()
 

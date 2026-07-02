@@ -11,20 +11,7 @@
         <p class="title-md muted" style="max-width:46ch">
           {{ t('hero.subtitle') }}
         </p>
-        <div class="counts" style="margin-top:var(--s-md)">
-          <div class="count-item">
-            <span class="n">{{ total }}</span>
-            <span class="k">{{ t('stat.boards') }}</span>
-          </div>
-          <div class="count-item">
-            <span class="n">{{ boards|sum(attribute='downloaded_count') }}</span>
-            <span class="k">{{ t('stat.pins') }}</span>
-          </div>
-          <div class="count-item">
-            <span class="n">{{ credentials|length }}</span>
-            <span class="k">{{ t('stat.sessions') }}</span>
-          </div>
-        </div>
+        {% include "partials/hero_stats.html" %}
       </div>
 
       <div class="code-window" id="add">

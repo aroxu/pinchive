@@ -8,12 +8,25 @@ stringifies annotations, which breaks SQLModel's Relationship type resolution
 from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional
+from urllib.parse import unquote, urlparse
 
 from sqlmodel import Field, Relationship, SQLModel
 
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def readable_name_from_url(url: str) -> Optional[str]:
+    """Turn a board URL's name segment into a human label, decoding percent-
+    encoded Unicode (e.g. `%EA%B7%B8%EB%A6%BC` -> `그림`) so Korean/other
+    non-ASCII board names read properly instead of as encoded gibberish."""
+    parts = [p for p in urlparse(url).path.strip("/").split("/") if p]
+    if not parts:
+        return None
+    seg = parts[1] if len(parts) >= 2 else parts[0]
+    seg = unquote(seg).replace("-", " ").replace("_", " ").strip()
+    return seg or None
 
 
 class BoardStatus(str, Enum):
@@ -114,6 +127,12 @@ class Board(SQLModel, table=True):
     tags: List["Tag"] = Relationship(
         back_populates="boards", link_model=BoardTagLink
     )
+
+    @property
+    def display_title(self) -> str:
+        """Human-facing name: the real board name once downloaded, else a
+        decoded label from the URL, else the (filesystem-safe) slug."""
+        return self.title or readable_name_from_url(self.url) or self.slug or "Board"
 
     @property
     def progress_pct(self) -> int:

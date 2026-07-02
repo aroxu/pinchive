@@ -1,0 +1,15 @@
+<div class="counts" id="hero-stats" style="margin-top:var(--s-md)"
+     hx-get="/stats" hx-trigger="every 5s" hx-swap="outerHTML">
+  <div class="count-item">
+    <span class="n">{{ stat_boards }}</span>
+    <span class="k">{{ t('stat.boards') }}</span>
+  </div>
+  <div class="count-item">
+    <span class="n">{{ stat_pins }}</span>
+    <span class="k">{{ t('stat.pins') }}</span>
+  </div>
+  <div class="count-item">
+    <span class="n">{{ stat_sessions }}</span>
+    <span class="k">{{ t('stat.sessions') }}</span>
+  </div>
+</div>

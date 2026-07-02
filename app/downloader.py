@@ -44,6 +44,7 @@ class DownloadResult:
     dest: Path | None = None
     log_tail: str = ""
     media: list["MediaItem"] = field(default_factory=list)
+    board_name: str | None = None  # real Pinterest board name from metadata
 
     @property
     def ok(self) -> bool:
@@ -162,7 +163,25 @@ def run_download(
         dest=dest,
         log_tail="\n".join(log),
         media=media,
+        board_name=extract_board_name(dest),
     )
+
+
+def extract_board_name(dest: Path) -> str | None:
+    """Read the real Pinterest board name from the first sidecar that has it."""
+    if not dest.exists():
+        return None
+    for sidecar in sorted(dest.rglob("*.json")):
+        try:
+            meta = json.loads(sidecar.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        board = meta.get("board")
+        if isinstance(board, dict):
+            name = board.get("name")
+            if isinstance(name, str) and name.strip():
+                return name.strip()
+    return None
 
 
 def scan_media(dest: Path) -> list[MediaItem]:

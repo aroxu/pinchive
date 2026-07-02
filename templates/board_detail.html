@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ board.title or board.slug }} — Pinchive{% endblock %}
+{% block title %}{{ board.display_title }} — Pinchive{% endblock %}
 
 {% block content %}
 <section class="section">
@@ -7,7 +7,7 @@
     <a class="body-sm muted" href="/">{{ t('detail.back') }}</a>
     <div class="row between row-wrap" style="margin-top:var(--s-md)">
       <div>
-        <h1 class="display-md">{{ board.title or board.slug or "Board" }}</h1>
+        <h1 class="display-md">{{ board.display_title }}</h1>
         <a class="board-url" href="{{ board.url }}" target="_blank" rel="noopener">{{ board.url }}</a>
       </div>
       <div class="row">

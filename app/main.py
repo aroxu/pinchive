@@ -137,6 +137,12 @@ def _paginate(session: Session, stmt, page: int, per_page: int):
     return items, page, pages, total
 
 
+def _hero_stats(session: Session) -> dict:
+    """Archive-wide totals for the live hero stats (not page-limited)."""
+    n = lambda model: session.exec(select(func.count()).select_from(model)).one()  # noqa: E731
+    return {"stat_boards": n(Board), "stat_pins": n(Pin), "stat_sessions": n(Credential)}
+
+
 def _paginate_list(rows: list, page: int, per_page: int):
     total = len(rows)
     pages = max(1, ceil(total / per_page)) if total else 1
@@ -203,7 +209,16 @@ def index(
             "pages": pages,
             "total": total,
             "base_qs": _base_qs(q=q, status=status, tag=tag),
+            **_hero_stats(session),
         },
+    )
+
+
+@app.get("/stats", response_class=HTMLResponse)
+def hero_stats(request: Request, session: Session = Depends(get_session)):
+    """HTMX poll target: the live archive-wide counters on the home hero."""
+    return templates.TemplateResponse(
+        request, "partials/hero_stats.html", _hero_stats(session)
     )
 
 

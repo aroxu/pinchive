@@ -35,6 +35,25 @@ def test_index_ok(client):
     assert client.get("/").status_code == 200
 
 
+def test_index_has_live_stats(client):
+    r = client.get("/")
+    assert 'id="hero-stats"' in r.text
+    assert 'hx-get="/stats"' in r.text
+    assert 'every 5s' in r.text
+
+
+def test_stats_endpoint_counts_and_polls(client):
+    b = _mk_board(slug="s1")
+    _mk_pin(b, "s1/a.jpg")
+    _mk_pin(b, "s1/b.jpg")
+    r = client.get("/stats")
+    assert r.status_code == 200
+    # keeps polling itself
+    assert 'hx-get="/stats"' in r.text
+    # counts present (1 board, 2 pins, 0 sessions)
+    assert ">1<" in r.text and ">2<" in r.text
+
+
 def test_healthz_queue_disabled(client):
     j = client.get("/healthz").json()
     assert j["status"] == "ok" and j["queue"] is False

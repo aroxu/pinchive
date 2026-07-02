@@ -76,3 +76,20 @@ def test_scan_media_ignores_non_media(tmp_path):
 
 def test_scan_media_missing_dir(tmp_path):
     assert downloader.scan_media(tmp_path / "nope") == []
+
+
+def test_extract_board_name_from_sidecar(tmp_path):
+    dest = tmp_path / "b"
+    dest.mkdir()
+    (dest / "1.jpg.json").write_text(
+        json.dumps({"id": 1, "board": {"name": "내 보드", "id": 9}}),
+        encoding="utf-8",
+    )
+    assert downloader.extract_board_name(dest) == "내 보드"
+
+
+def test_extract_board_name_absent(tmp_path):
+    dest = tmp_path / "b"
+    dest.mkdir()
+    (dest / "1.jpg.json").write_text(json.dumps({"id": 1}), encoding="utf-8")
+    assert downloader.extract_board_name(dest) is None

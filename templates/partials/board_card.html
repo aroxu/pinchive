@@ -3,7 +3,7 @@
      {% if active %}hx-get="/boards/{{ board.id }}/card" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
   <div class="head">
     <div>
-      <a class="board-title" href="/boards/{{ board.id }}">{{ board.title or board.slug or "Board" }}</a>
+      <a class="board-title" href="/boards/{{ board.id }}">{{ board.display_title }}</a>
       <div class="board-url">{{ board.url }}</div>
     </div>
     {% if board.status == BoardStatus.done %}
