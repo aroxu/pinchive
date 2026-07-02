@@ -10,10 +10,10 @@ RUN bash fetch_assets.sh /assets
 # ---- runtime stage ----
 FROM python:3.12-slim AS runtime
 
-# ffmpeg: needed by gallery-dl to mux Pinterest video pins.
-# tini: clean signal handling for the worker/web processes.
+# ffmpeg: mux Pinterest video pins. tini: clean signal handling.
+# gosu: drop from root to the app user in the entrypoint after fixing perms.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg tini \
+    && apt-get install -y --no-install-recommends ffmpeg tini gosu \
     && rm -rf /var/lib/apt/lists/*
 
 ENV PYTHONUNBUFFERED=1 \
@@ -51,15 +51,19 @@ COPY --from=assets /assets/fonts/ ./static/fonts/
 # rather than the copy pip put in site-packages, so BASE_DIR points at /app.
 ENV PYTHONPATH=/app
 
-# Non-root.
+# App user. The entrypoint runs as root only long enough to fix ownership of
+# the /data mount (a host bind mount arrives with the host's uid), then drops
+# to this user via gosu — so the app process itself is never root.
 RUN useradd -m -u 10001 pinchive \
     && mkdir -p /data \
     && chown -R pinchive:pinchive /app /data /ms-playwright
-USER pinchive
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 VOLUME ["/data"]
 EXPOSE 8000
 
-ENTRYPOINT ["/usr/bin/tini", "--"]
+# tini as PID 1 -> entrypoint (root: fix perms, drop priv) -> CMD as pinchive.
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
 # Default command runs the web server. The worker overrides command in compose.
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
