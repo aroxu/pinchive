@@ -24,7 +24,10 @@ except ImportError:  # Pillow optional at import time; hashing degrades to sha25
 
 _HASH_SIZE = 8  # -> 64-bit dHash
 # Near-duplicate threshold (Hamming distance). <= this = "same image".
-NEAR_THRESHOLD = 6
+# 8/64 sits below the ~32-bit distance of unrelated images (low false-positive)
+# while still catching heavy re-encodes/resizes (a real Pinterest re-encode
+# measured ~4). Tune up toward 10 to catch more, down toward 4 to be stricter.
+NEAR_THRESHOLD = 8
 
 
 def sha256_file(path: Path, chunk: int = 1 << 20) -> str:
@@ -43,7 +46,7 @@ def dhash(path: Path, hash_size: int = _HASH_SIZE) -> str | None:
             im = im.convert("L").resize(
                 (hash_size + 1, hash_size), Image.Resampling.LANCZOS
             )
-            px = list(im.getdata())
+            px = im.tobytes()  # row-major, one byte per pixel in mode "L"
     except Exception:  # noqa: BLE001 — unreadable/corrupt image -> no phash
         return None
     w = hash_size + 1
@@ -54,7 +57,14 @@ def dhash(path: Path, hash_size: int = _HASH_SIZE) -> str | None:
             bits <<= 1
             if px[base + col] < px[base + col + 1]:
                 bits |= 1
-    return f"{bits:0{hash_size * hash_size // 4}x}"
+    nbits = hash_size * hash_size
+    # A flat / near-flat image (solid colour, blank thumbnail) yields an all-0 or
+    # all-1 hash and carries no perceptual signal — treat it as "no phash" so
+    # unrelated blank images don't collide as near-duplicates. Exact sha still
+    # catches genuinely identical files.
+    if bits == 0 or bits == (1 << nbits) - 1:
+        return None
+    return f"{bits:0{nbits // 4}x}"
 
 
 @dataclass

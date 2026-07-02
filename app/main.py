@@ -481,12 +481,26 @@ async def resolve_duplicates(
     pin_ids: list[int] = Form(default=[]),
     session: Session = Depends(get_session),
 ):
+    affected: set[int] = set()
     for pid in pin_ids:
         pin = session.get(Pin, pid)
         if pin is None:
             continue
+        affected.add(pin.board_id)
         _delete_pin_files(pin)
         session.delete(pin)
+    session.commit()
+    # Keep board counters honest with what's actually left on disk.
+    for bid in affected:
+        board = session.get(Board, bid)
+        if board is None:
+            continue
+        remaining = len(
+            session.exec(select(Pin).where(Pin.board_id == bid)).all()
+        )
+        board.pin_count = remaining
+        board.downloaded_count = min(board.downloaded_count, remaining)
+        session.add(board)
     session.commit()
     return RedirectResponse("/duplicates", status_code=303)
 
