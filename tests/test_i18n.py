@@ -39,6 +39,17 @@ def test_catalogs_have_matching_keys():
     assert not missing, f"KO missing keys: {sorted(missing)}"
 
 
+def test_every_board_status_has_a_translation():
+    # the status filter dropdown renders t('status.<enum value>') for each status,
+    # so every BoardStatus needs a key or the raw key leaks into the UI
+    from app.models import BoardStatus
+
+    for st in BoardStatus:
+        key = f"status.{st.value}"
+        assert i18n.EN.get(key), f"missing EN {key}"
+        assert i18n.KO.get(key), f"missing KO {key}"
+
+
 class _Req:
     def __init__(self, query=None, cookies=None, al=""):
         self.query_params = query or {}
