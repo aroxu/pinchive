@@ -318,6 +318,24 @@ label.field .lbl {
 .count-item .k { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
 
 .pin-grid { display: grid; gap: var(--s-sm); grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+.pin-grid.view-s { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+.pin-grid.view-m { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+.pin-grid.view-l { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.pin-cell { position: relative; }
+.pin-check {
+  position: absolute; top: 8px; left: 8px; z-index: 2;
+  background: rgba(10,10,10,.7); border-radius: var(--r-xs);
+  padding: 3px; display: inline-flex; cursor: pointer;
+}
+.pin-check input { accent-color: var(--primary); cursor: pointer; margin: 0; }
+
+/* ---- bulk action bar -------------------------------------------------- */
+.bulk-bar {
+  display: flex; align-items: center; gap: var(--s-sm); flex-wrap: wrap;
+  background: var(--surface-card); border: 1px solid var(--hairline);
+  border-radius: var(--r-md); padding: var(--s-sm) var(--s-md);
+  margin-bottom: var(--s-md);
+}
 .pin {
   background: var(--surface-card); border: 1px solid var(--hairline);
   border-radius: var(--r-md); overflow: hidden; position: relative;

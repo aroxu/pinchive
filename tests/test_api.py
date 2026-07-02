@@ -170,6 +170,75 @@ def test_pin_pagination(client):
     assert "Page 2 / 2" in page2
 
 
+def test_pin_sort_by_size(client):
+    bid = _mk_board(slug="srt")
+    _mk_pin(bid, "srt/big.jpg", width=1000, height=1000)
+    _mk_pin(bid, "srt/small.jpg", width=100, height=100)
+    big = client.get(f"/boards/{bid}?sort=big").text
+    assert big.index("big.jpg") < big.index("small.jpg")
+    small = client.get(f"/boards/{bid}?sort=small").text
+    assert small.index("small.jpg") < small.index("big.jpg")
+
+
+def test_pin_sort_by_name_and_recency(client):
+    bid = _mk_board(slug="srt2")
+    a = _mk_pin(bid, "srt2/aaa.jpg")   # lower id
+    z = _mk_pin(bid, "srt2/zzz.jpg")   # higher id
+    name = client.get(f"/boards/{bid}?sort=name").text
+    assert name.index("aaa.jpg") < name.index("zzz.jpg")
+    new = client.get(f"/boards/{bid}?sort=new").text
+    assert new.index("zzz.jpg") < new.index("aaa.jpg")  # newest (higher id) first
+    old = client.get(f"/boards/{bid}?sort=old").text
+    assert old.index("aaa.jpg") < old.index("zzz.jpg")
+    assert a < z
+
+
+def test_pin_view_class(client):
+    bid = _mk_board(slug="vw")
+    _mk_pin(bid, "vw/a.jpg")
+    assert "pin-grid view-l" in client.get(f"/boards/{bid}?view=l").text
+    assert "pin-grid view-s" in client.get(f"/boards/{bid}?view=s").text
+    assert "pin-grid view-m" in client.get(f"/boards/{bid}").text  # default
+
+
+def test_bulk_tag_add_and_remove(client):
+    bid = _mk_board(slug="blk")
+    p1 = _mk_pin(bid, "blk/1.jpg")
+    p2 = _mk_pin(bid, "blk/2.jpg")
+    p3 = _mk_pin(bid, "blk/3.jpg")
+    client.post("/pins/bulk-tag",
+                data={"pin_ids": [p1, p2], "name": "Sky", "action": "add"},
+                follow_redirects=False)
+    with session_scope() as s:
+        assert "sky" in [t.name for t in s.get(Pin, p1).tags]
+        assert "sky" in [t.name for t in s.get(Pin, p2).tags]
+        assert s.get(Pin, p3).tags == []
+    client.post("/pins/bulk-tag",
+                data={"pin_ids": [p1], "name": "sky", "action": "remove"},
+                follow_redirects=False)
+    with session_scope() as s:
+        assert s.get(Pin, p1).tags == []
+        assert "sky" in [t.name for t in s.get(Pin, p2).tags]
+
+
+def test_bulk_delete_pins(client):
+    bid = _mk_board(slug="bd", pin_count=2)
+    p1 = _mk_pin(bid, "bd/1.jpg")
+    _mk_pin(bid, "bd/2.jpg")
+    client.post("/pins/bulk-tag",
+                data={"pin_ids": [p1], "action": "delete"},
+                follow_redirects=False)
+    with session_scope() as s:
+        assert s.get(Pin, p1) is None
+        assert s.get(Board, bid).pin_count == 1
+
+
+def test_bulk_tag_empty_selection_noop(client):
+    r = client.post("/pins/bulk-tag", data={"name": "x", "action": "add"},
+                    follow_redirects=False)
+    assert r.status_code in (303, 307)  # just redirects, no error
+
+
 def test_toggle_resync(client):
     bid = _mk_board(slug="tr")
     with session_scope() as s:

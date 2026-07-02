@@ -66,8 +66,12 @@ Full setup (login profile, local install, switch matrix):
 
 - **Search & filter.** Filter boards by text, status, or tag; filter pins inside
   a board by text, media type, or "duplicates only".
+- **Sort & view.** Order pins by newest / oldest / largest / smallest / name,
+  and switch thumbnail size (small / medium / large).
 - **Tags.** Free-form labels on both boards and pins (`+ tag` inputs); click a
   tag or use the dropdown to filter.
+- **Bulk actions.** Select pins (checkboxes / select-all) and add a tag, remove
+  a tag, or delete them in one go from the board's bulk bar.
 - **Duplicate detection.** The **Duplicates** page finds the same image across
   pins/boards — both exact byte matches (SHA-256) and visually identical
   re-encodes/resizes (64-bit perceptual dHash, Pillow). Each group marks the

@@ -170,6 +170,18 @@ def index(
     )
 
 
+# Pin sort options -> ORDER BY clauses. `_area` orders by pixel resolution.
+_area = Pin.width * Pin.height
+PIN_SORTS = {
+    "new": [Pin.id.desc()],
+    "old": [Pin.id.asc()],
+    "big": [_area.desc(), Pin.id.desc()],
+    "small": [_area.asc(), Pin.id.asc()],
+    "name": [Pin.filename.asc(), Pin.id.asc()],
+}
+PIN_VIEWS = {"s", "m", "l"}
+
+
 @app.get("/boards/{board_id}", response_class=HTMLResponse)
 def board_detail(
     request: Request,
@@ -177,6 +189,8 @@ def board_detail(
     q: str = Query(default=""),
     type: str = Query(default=""),       # image | video
     dupes: str = Query(default=""),      # "1" -> only pins that have duplicates
+    sort: str = Query(default="new"),
+    view: str = Query(default="m"),      # s | m | l  (thumbnail size)
     page: int = Query(default=1),
     session: Session = Depends(get_session),
 ):
@@ -203,7 +217,9 @@ def board_detail(
         dup_ids = _duplicate_pin_ids(session) or {-1}
         stmt = stmt.where(Pin.id.in_(dup_ids))
 
-    stmt = stmt.order_by(Pin.id)
+    sort = sort if sort in PIN_SORTS else "new"
+    view = view if view in PIN_VIEWS else "m"
+    stmt = stmt.order_by(*PIN_SORTS[sort])
     pins, page, pages, total = _paginate(session, stmt, page, settings.per_page_pins)
 
     all_tags = session.exec(select(Tag).order_by(Tag.name)).all()
@@ -217,10 +233,12 @@ def board_detail(
             "q": q,
             "active_type": type,
             "dupes": dupes == "1",
+            "active_sort": sort,
+            "active_view": view,
             "page": page,
             "pages": pages,
             "total": total,
-            "base_qs": _base_qs(q=q, type=type, dupes=dupes),
+            "base_qs": _base_qs(q=q, type=type, dupes=dupes, sort=sort, view=view),
         },
     )
 
@@ -496,6 +514,50 @@ async def untag_pin(
     return _redirect_back(request, f"/boards/{pin.board_id}" if pin else "/")
 
 
+@app.post("/pins/bulk-tag")
+async def bulk_tag_pins(
+    request: Request,
+    pin_ids: list[int] = Form(default=[]),
+    name: str = Form(default=""),
+    action: str = Form(default="add"),   # add | remove | delete
+    session: Session = Depends(get_session),
+):
+    """Apply/remove a tag on many pins at once, or bulk-delete them."""
+    if not pin_ids:
+        return _redirect_back(request, "/")
+
+    if action == "delete":
+        affected: set[int] = set()
+        for pid in pin_ids:
+            pin = session.get(Pin, pid)
+            if pin is None:
+                continue
+            affected.add(pin.board_id)
+            _delete_pin_files(pin)
+            session.delete(pin)
+        session.commit()
+        for bid in affected:
+            _reconcile_board_counts(session, bid)
+        session.commit()
+        return _redirect_back(request, "/")
+
+    tag = _get_or_create_tag(session, name)
+    if tag is None:
+        return _redirect_back(request, "/")
+    for pid in pin_ids:
+        pin = session.get(Pin, pid)
+        if pin is None:
+            continue
+        if action == "remove":
+            if tag in pin.tags:
+                pin.tags.remove(tag)
+        elif tag not in pin.tags:
+            pin.tags.append(tag)
+        session.add(pin)
+    session.commit()
+    return _redirect_back(request, "/")
+
+
 # --------------------------------------------------------------------------- #
 # duplicates
 # --------------------------------------------------------------------------- #
@@ -570,17 +632,8 @@ async def resolve_duplicates(
         _delete_pin_files(pin)
         session.delete(pin)
     session.commit()
-    # Keep board counters honest with what's actually left on disk.
     for bid in affected:
-        board = session.get(Board, bid)
-        if board is None:
-            continue
-        remaining = len(
-            session.exec(select(Pin).where(Pin.board_id == bid)).all()
-        )
-        board.pin_count = remaining
-        board.downloaded_count = min(board.downloaded_count, remaining)
-        session.add(board)
+        _reconcile_board_counts(session, bid)
     session.commit()
     return RedirectResponse("/duplicates", status_code=303)
 
@@ -595,6 +648,17 @@ def healthz(request: Request):
 # --------------------------------------------------------------------------- #
 def _any_active(boards: list[Board]) -> bool:
     return any(b.status in ACTIVE_STATUSES for b in boards)
+
+
+def _reconcile_board_counts(session: Session, board_id: int) -> None:
+    """After deleting pins, keep the board's counters honest with disk."""
+    board = session.get(Board, board_id)
+    if board is None:
+        return
+    remaining = len(session.exec(select(Pin).where(Pin.board_id == board_id)).all())
+    board.pin_count = remaining
+    board.downloaded_count = min(board.downloaded_count, remaining)
+    session.add(board)
 
 
 def _rmtree_safe(path: Path) -> None:

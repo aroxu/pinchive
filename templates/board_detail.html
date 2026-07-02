@@ -50,12 +50,23 @@
         <option value="image" {{ 'selected' if active_type == 'image' }}>Images</option>
         <option value="video" {{ 'selected' if active_type == 'video' }}>Videos</option>
       </select>
+      <select class="input" name="sort" onchange="this.form.submit()" title="Sort">
+        <option value="new"   {{ 'selected' if active_sort == 'new' }}>Newest</option>
+        <option value="old"   {{ 'selected' if active_sort == 'old' }}>Oldest</option>
+        <option value="big"   {{ 'selected' if active_sort == 'big' }}>Largest</option>
+        <option value="small" {{ 'selected' if active_sort == 'small' }}>Smallest</option>
+        <option value="name"  {{ 'selected' if active_sort == 'name' }}>Name</option>
+      </select>
+      <select class="input" name="view" onchange="this.form.submit()" title="Thumbnail size">
+        <option value="s" {{ 'selected' if active_view == 's' }}>Small</option>
+        <option value="m" {{ 'selected' if active_view == 'm' }}>Medium</option>
+        <option value="l" {{ 'selected' if active_view == 'l' }}>Large</option>
+      </select>
       <label class="tag" style="cursor:pointer">
         <input type="checkbox" name="dupes" value="1" {{ 'checked' if dupes }}
                onchange="this.form.submit()"> duplicates only
       </label>
-      <button class="btn btn-secondary" type="submit">Filter</button>
-      {% if q or active_type or dupes %}
+      {% if q or active_type or dupes or active_sort != 'new' or active_view != 'm' %}
       <a class="btn btn-ghost" href="/boards/{{ board.id }}">Clear</a>
       {% endif %}
     </form>
@@ -72,9 +83,29 @@
         </p>
       </div>
     {% else %}
-      <div class="pin-grid">
+      <!-- Bulk actions. Checkboxes live outside this form (avoids nested forms
+           with the per-pin tag forms); JS injects the selected ids on submit. -->
+      <form method="post" action="/pins/bulk-tag" id="bulk-form" class="bulk-bar"
+            onsubmit="return pinchiveBulkSubmit(event)">
+        <label class="tag" style="cursor:pointer">
+          <input type="checkbox" id="select-all"> select all
+        </label>
+        <span class="caption-uc" id="sel-count" style="color:var(--muted)">0 selected</span>
+        <input class="input" name="name" placeholder="tag name" maxlength="30"
+               style="width:auto" aria-label="bulk tag name">
+        <button class="btn btn-secondary btn-sm" name="action" value="add">Add tag</button>
+        <button class="btn btn-secondary btn-sm" name="action" value="remove">Remove tag</button>
+        <button class="btn btn-danger btn-sm" name="action" value="delete"
+                data-confirm="Delete the selected pins from disk?">Delete selected</button>
+      </form>
+
+      <div class="pin-grid view-{{ active_view }}">
         {% for pin in pins %}
         <div class="pin-cell">
+          <label class="pin-check">
+            <input type="checkbox" class="pin-select" value="{{ pin.id }}"
+                   aria-label="select pin">
+          </label>
           <div class="pin">
             {% if pin.media_type == "video" %}
               <video src="/media/{{ pin.rel_path }}" controls preload="none"></video>
@@ -103,6 +134,43 @@
       </div>
 
       {% include "partials/pagination.html" %}
+
+      <script>
+        (function () {
+          var boxes = function () {
+            return Array.prototype.slice.call(document.querySelectorAll('.pin-select'));
+          };
+          var count = document.getElementById('sel-count');
+          var all = document.getElementById('select-all');
+          function refresh() {
+            var n = boxes().filter(function (b) { return b.checked; }).length;
+            if (count) count.textContent = n + ' selected';
+          }
+          if (all) all.addEventListener('change', function () {
+            boxes().forEach(function (b) { b.checked = all.checked; });
+            refresh();
+          });
+          document.addEventListener('change', function (e) {
+            if (e.target && e.target.classList.contains('pin-select')) refresh();
+          });
+          window.pinchiveBulkSubmit = function (e) {
+            var btn = e.submitter;
+            var action = btn ? btn.value : 'add';
+            var selected = boxes().filter(function (b) { return b.checked; });
+            if (!selected.length) { alert('Select some pins first.'); return false; }
+            if (btn && btn.dataset.confirm && !confirm(btn.dataset.confirm)) return false;
+            var form = document.getElementById('bulk-form');
+            form.querySelectorAll('input[name="pin_ids"]').forEach(function (n) { n.remove(); });
+            selected.forEach(function (b) {
+              var h = document.createElement('input');
+              h.type = 'hidden'; h.name = 'pin_ids'; h.value = b.value;
+              form.appendChild(h);
+            });
+            return true;
+          };
+          refresh();
+        })();
+      </script>
     {% endif %}
   </div>
 </section>
