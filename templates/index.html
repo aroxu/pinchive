@@ -71,10 +71,33 @@
       <span class="caption-uc">{{ boards|length }} boards</span>
     </div>
 
+    <form method="get" action="/" class="filter-bar" role="search">
+      <input class="input grow" type="search" name="q" value="{{ q }}"
+             placeholder="Search boards…">
+      <select class="input" name="status" onchange="this.form.submit()">
+        <option value="">All status</option>
+        {% for st in statuses %}
+        <option value="{{ st }}" {{ 'selected' if active_status == st }}>{{ st }}</option>
+        {% endfor %}
+      </select>
+      {% if all_tags %}
+      <select class="input" name="tag" onchange="this.form.submit()">
+        <option value="">All tags</option>
+        {% for t in all_tags %}
+        <option value="{{ t.name }}" {{ 'selected' if active_tag == t.name }}>#{{ t.name }}</option>
+        {% endfor %}
+      </select>
+      {% endif %}
+      <button class="btn btn-secondary" type="submit">Filter</button>
+      {% if q or active_status or active_tag %}
+      <a class="btn btn-ghost" href="/">Clear</a>
+      {% endif %}
+    </form>
+
     {% if not boards %}
     <div class="card">
-      <p class="title-md">No boards yet.</p>
-      <p class="muted">Add a Pinterest board URL above to start archiving.</p>
+      <p class="title-md">{% if q or active_status or active_tag %}No matching boards.{% else %}No boards yet.{% endif %}</p>
+      <p class="muted">{% if q or active_status or active_tag %}Try clearing filters.{% else %}Add a Pinterest board URL above to start archiving.{% endif %}</p>
     </div>
     {% endif %}
 

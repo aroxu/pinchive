@@ -60,7 +60,11 @@ async def download_board(ctx: dict, board_id: int) -> dict:
         cred_id = board.credential_id
 
     dest = settings.boards_dir / slug
-    archive_file = settings.boards_dir / ".gallery-dl-archive.db"
+    # Per-board archive: each board stays a faithful mirror of its Pinterest
+    # contents (a pin shared across boards downloads into each), while re-syncing
+    # a board still skips pins it already has. Cross-board / cross-pin duplicate
+    # *images* are surfaced by the Duplicates view, not silently dropped here.
+    archive_file = dest / ".gallery-dl-archive.db"
     cookies_file = None
     if cred_id is not None:
         cf = auth.cookies_path(cred_id)
@@ -112,23 +116,33 @@ async def download_board(ctx: dict, board_id: int) -> dict:
             board.status = BoardStatus.error
             board.last_error = _last_error_line(result.log_tail) or "download failed"
 
-        # Re-sync Pin rows with what is actually on disk.
-        existing = s.exec(select(Pin).where(Pin.board_id == board_id)).all()
-        for pin in existing:
-            s.delete(pin)
+        # Re-sync Pin rows with what is on disk, keyed by rel_path so a pin keeps
+        # its identity (and any user tags) across re-syncs instead of being
+        # deleted and recreated.
+        existing = {
+            p.rel_path: p
+            for p in s.exec(select(Pin).where(Pin.board_id == board_id)).all()
+        }
+        seen: set[str] = set()
         for m in result.media:
-            s.add(
-                Pin(
-                    board_id=board_id,
-                    pinterest_id=m.pinterest_id,
-                    filename=m.filename,
-                    rel_path=f"{slug}/{m.rel_path}",
-                    media_type=m.media_type,
-                    width=m.width,
-                    height=m.height,
-                    source_url=m.source_url,
-                )
-            )
+            rel = f"{slug}/{m.rel_path}"
+            seen.add(rel)
+            pin = existing.get(rel) or Pin(board_id=board_id, rel_path=rel)
+            pin.pinterest_id = m.pinterest_id
+            pin.filename = m.filename
+            pin.media_type = m.media_type
+            pin.width = m.width
+            pin.height = m.height
+            pin.source_url = m.source_url
+            pin.title = m.title
+            pin.description = m.description
+            pin.content_sha256 = m.content_sha256
+            pin.phash = m.phash
+            pin.file_size = m.file_size
+            s.add(pin)
+        for rel, pin in existing.items():
+            if rel not in seen:
+                s.delete(pin)
 
     return {
         "downloaded": result.downloaded,

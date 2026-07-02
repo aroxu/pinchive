@@ -42,27 +42,62 @@
 
 <section class="section" style="padding-top:0">
   <div class="container">
+    <form method="get" action="/boards/{{ board.id }}" class="filter-bar" role="search">
+      <input class="input grow" type="search" name="q" value="{{ q }}"
+             placeholder="Search pins (title, filename, source)…">
+      <select class="input" name="type" onchange="this.form.submit()">
+        <option value="">All media</option>
+        <option value="image" {{ 'selected' if active_type == 'image' }}>Images</option>
+        <option value="video" {{ 'selected' if active_type == 'video' }}>Videos</option>
+      </select>
+      <label class="tag" style="cursor:pointer">
+        <input type="checkbox" name="dupes" value="1" {{ 'checked' if dupes }}
+               onchange="this.form.submit()"> duplicates only
+      </label>
+      <button class="btn btn-secondary" type="submit">Filter</button>
+      {% if q or active_type or dupes %}
+      <a class="btn btn-ghost" href="/boards/{{ board.id }}">Clear</a>
+      {% endif %}
+    </form>
+
     {% if not pins %}
       <div class="card">
-        <p class="title-md">No media yet.</p>
+        <p class="title-md">
+          {% if q or active_type or dupes %}No matching pins.{% else %}No media yet.{% endif %}
+        </p>
         <p class="muted">
-          {% if board.status == BoardStatus.downloading %}Download in progress — check back shortly.
+          {% if q or active_type or dupes %}Try clearing filters.
+          {% elif board.status == BoardStatus.downloading %}Download in progress — check back shortly.
           {% else %}Nothing downloaded. Try Re-sync, or check the log above.{% endif %}
         </p>
       </div>
     {% else %}
       <div class="pin-grid">
         {% for pin in pins %}
-        <div class="pin">
-          {% if pin.media_type == "video" %}
-            <video src="/media/{{ pin.rel_path }}" controls preload="none"></video>
-            <span class="vtag">video</span>
-          {% else %}
-            <a href="/media/{{ pin.rel_path }}" target="_blank" rel="noopener">
-              <img loading="lazy" src="/media/{{ pin.rel_path }}"
-                   alt="{{ pin.pinterest_id or pin.filename }}">
-            </a>
-          {% endif %}
+        <div class="pin-cell">
+          <div class="pin">
+            {% if pin.media_type == "video" %}
+              <video src="/media/{{ pin.rel_path }}" controls preload="none"></video>
+              <span class="vtag">video</span>
+            {% else %}
+              <a href="/media/{{ pin.rel_path }}" target="_blank" rel="noopener">
+                <img loading="lazy" src="/media/{{ pin.rel_path }}"
+                     alt="{{ pin.title or pin.pinterest_id or pin.filename }}">
+              </a>
+            {% endif %}
+          </div>
+          <div class="tag-row" style="margin-top:6px">
+            {% for t in pin.tags %}
+            <span class="tag">#{{ t.name }}
+              <form method="post" action="/pins/{{ pin.id }}/untag/{{ t.id }}" style="display:inline">
+                <button class="x" type="submit" title="remove">×</button>
+              </form>
+            </span>
+            {% endfor %}
+            <form method="post" action="/pins/{{ pin.id }}/tag" class="tag-add">
+              <input name="name" placeholder="+ tag" maxlength="30" aria-label="add tag">
+            </form>
+          </div>
         </div>
         {% endfor %}
       </div>

@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Duplicates — Pinchive{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="container">
+    <span class="badge-teal badge">Dedup</span>
+    <div class="row between row-wrap" style="margin-top:var(--s-md)">
+      <div>
+        <h1 class="display-md">Duplicate images</h1>
+        <p class="muted" style="max-width:60ch">
+          Same picture across pins — exact byte matches and visually identical
+          re-encodes (perceptual hash). The highest-resolution copy in each group
+          is marked <span class="tag" style="border-color:var(--primary)">KEEP</span>;
+          the rest are pre-selected for deletion.
+        </p>
+      </div>
+      <div class="count-item">
+        <span class="stat-sm">{{ total_extra }}</span>
+        <span class="k muted caption-uc">removable copies</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="padding-top:0">
+  <div class="container">
+    {% if not groups %}
+      <div class="card">
+        <p class="title-md">No duplicates found.</p>
+        <p class="muted">Every archived image is unique — nothing to clean up.</p>
+      </div>
+    {% endif %}
+
+    {% for group in groups %}
+    <form method="post" action="/duplicates/resolve" class="dupe-group"
+          onsubmit="return confirm('Delete the selected copies? Files are removed from disk.')">
+      <div class="row between" style="margin-bottom:var(--s-md)">
+        <span class="title-sm">{{ group|length }} copies</span>
+        <button class="btn btn-danger btn-sm" type="submit">Delete selected</button>
+      </div>
+      <div class="dupe-grid">
+        {% for pin in group %}
+        <div class="dupe-item {{ 'keep' if loop.first }}">
+          {% if loop.first %}<span class="keep-badge">keep</span>{% endif %}
+          <a href="/media/{{ pin.rel_path }}" target="_blank" rel="noopener">
+            <img loading="lazy" src="/media/{{ pin.rel_path }}" alt="{{ pin.filename }}">
+          </a>
+          <label class="pick">
+            <input type="checkbox" name="pin_ids" value="{{ pin.id }}"
+                   {{ 'checked' if not loop.first }}>
+            del
+          </label>
+          <div class="meta">
+            <a class="muted" href="/boards/{{ pin.board_id }}">board {{ pin.board_id }}</a>
+            <span>{{ pin.width or '?' }}×{{ pin.height or '?' }}</span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </form>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

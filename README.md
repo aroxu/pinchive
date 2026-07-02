@@ -62,6 +62,23 @@ Best-effort only — captcha/2FA will defeat it, and it stores a password on dis
 Full setup (login profile, local install, switch matrix):
 **[docs/credential-refresh.md](docs/credential-refresh.md)**.
 
+## Organizing your archive
+
+- **Search & filter.** Filter boards by text, status, or tag; filter pins inside
+  a board by text, media type, or "duplicates only".
+- **Tags.** Free-form labels on both boards and pins (`+ tag` inputs); click a
+  tag or use the dropdown to filter.
+- **Duplicate detection.** The **Duplicates** page finds the same image across
+  pins/boards — both exact byte matches (SHA-256) and visually identical
+  re-encodes/resizes (64-bit perceptual dHash, Pillow). Each group marks the
+  highest-resolution copy **KEEP** and pre-selects the rest; one click removes
+  the extra files from disk. Detection is non-destructive until you confirm.
+
+Each board keeps its **own** `--download-archive`, so a board stays a faithful
+mirror (a pin shared across boards downloads into each) while re-syncing still
+fetches only new pins — redundancy is surfaced by the Duplicates view, not
+silently dropped.
+
 ## Local dev (no Docker)
 
 ```bash
@@ -87,14 +104,15 @@ app/
   tasks.py        arq worker: download_board, refresh cron
   downloader.py   gallery-dl subprocess wrapper + progress parsing
   auth.py         cookie normalise (Netscape/JSON) + liveness check
-  models.py       Board / Pin / Credential
+  dedup.py        sha256 + perceptual dHash + duplicate grouping
+  models.py       Board / Pin / Credential / Tag
 templates/  static/   Jinja2 + design-token CSS
 ```
 
 ## Notes
 
-- gallery-dl uses a shared `--download-archive`, so re-syncing a board only
-  fetches *new* pins.
+- Each board keeps its own per-board `--download-archive`, so re-syncing a board
+  only fetches *new* pins.
 - No shadows anywhere — depth is pure canvas/card contrast, per the design system.
 - ffmpeg is bundled in the image for muxing video pins.
 

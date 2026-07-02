@@ -43,6 +43,44 @@ def init_db() -> None:
     from app import models  # noqa: F401
 
     SQLModel.metadata.create_all(engine)
+    _migrate()
+
+
+# Columns added after the first release. create_all won't ALTER existing tables,
+# so patch them in for DBs created by an older version. (No Alembic — one file.)
+_ADDED_COLUMNS = {
+    "pin": {
+        "title": "VARCHAR",
+        "description": "VARCHAR",
+        "content_sha256": "VARCHAR",
+        "phash": "VARCHAR",
+        "file_size": "INTEGER",
+    },
+}
+
+
+def _migrate() -> None:
+    from sqlalchemy import text
+
+    with engine.begin() as conn:
+        for table, cols in _ADDED_COLUMNS.items():
+            existing = {
+                row[1]
+                for row in conn.execute(text(f"PRAGMA table_info({table})"))
+            }
+            for name, sqltype in cols.items():
+                if name not in existing:
+                    conn.execute(
+                        text(f"ALTER TABLE {table} ADD COLUMN {name} {sqltype}")
+                    )
+        # Helpful indexes for the new dedup columns (safe if already present).
+        conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_pin_content_sha256 "
+                 "ON pin (content_sha256)")
+        )
+        conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_pin_phash ON pin (phash)")
+        )
 
 
 @contextmanager

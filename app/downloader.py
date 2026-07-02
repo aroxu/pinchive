@@ -20,6 +20,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from app import dedup
+
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
 VIDEO_EXTS = {".mp4", ".webm", ".mov", ".mkv", ".m4v"}
 MEDIA_EXTS = IMAGE_EXTS | VIDEO_EXTS
@@ -61,6 +63,11 @@ class MediaItem:
     width: int | None = None
     height: int | None = None
     source_url: str | None = None
+    title: str | None = None
+    description: str | None = None
+    content_sha256: str | None = None
+    phash: str | None = None
+    file_size: int | None = None
 
 
 def build_command(
@@ -173,6 +180,10 @@ def scan_media(dest: Path) -> list[MediaItem]:
         rel = path.relative_to(dest).as_posix()
         item = MediaItem(filename=path.name, rel_path=rel, media_type=media_type)
         _enrich_from_sidecar(path, item)
+        h = dedup.compute(path, is_image=(media_type == "image"))
+        item.content_sha256 = h.sha256
+        item.phash = h.phash
+        item.file_size = h.size
         items.append(item)
     return items
 
@@ -194,6 +205,15 @@ def _enrich_from_sidecar(media_path: Path, item: MediaItem) -> None:
         or meta.get("link")
         or (meta.get("images", {}) or {}).get("orig", {}).get("url")
     )
+    item.title = _clean_text(meta.get("title") or meta.get("grid_title"))
+    item.description = _clean_text(meta.get("description"))
+
+
+def _clean_text(v: object) -> str | None:
+    if not isinstance(v, str):
+        return None
+    v = v.strip()
+    return v[:1000] or None
 
 
 def _as_int(v: object) -> int | None:
