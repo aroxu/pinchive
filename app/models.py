@@ -94,6 +94,9 @@ class Board(SQLModel, table=True):
     last_error: Optional[str] = Field(default=None)
     log_tail: Optional[str] = Field(default=None)  # last N log lines
 
+    # Include this board in the periodic auto-resync cron.
+    auto_resync: bool = Field(default=True)
+
     credential_id: Optional[int] = Field(
         default=None, foreign_key="credential.id"
     )

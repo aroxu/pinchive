@@ -145,3 +145,39 @@ def test_delete_board_removes_row(client):
     client.post(f"/boards/{bid}/delete", data={"purge": ""}, follow_redirects=False)
     with session_scope() as s:
         assert s.get(Board, bid) is None
+
+
+def test_board_pagination(client):
+    per = settings.per_page_boards
+    for i in range(per + 5):  # one full page + overflow
+        _mk_board(title=f"BRD{i:03d}", slug=f"s{i}")
+    p1 = client.get("/").text
+    assert "Page 1 / 2" in p1
+    # newest first -> the oldest (BRD000) is pushed to page 2
+    assert "BRD000" not in p1
+    assert "BRD000" in client.get("/?page=2").text
+    assert f"{per + 5} boards" in p1  # total, not page size
+
+
+def test_pin_pagination(client):
+    bid = _mk_board(slug="big")
+    per = settings.per_page_pins
+    for i in range(per + 3):
+        _mk_pin(bid, f"big/p{i:04d}.jpg")
+    page1 = client.get(f"/boards/{bid}").text
+    assert "Page 1 / 2" in page1
+    page2 = client.get(f"/boards/{bid}?page=2").text
+    assert "Page 2 / 2" in page2
+
+
+def test_toggle_resync(client):
+    bid = _mk_board(slug="tr")
+    with session_scope() as s:
+        assert s.get(Board, bid).auto_resync is True  # default on
+    r = client.post(f"/boards/{bid}/toggle-resync")
+    assert r.status_code == 200
+    with session_scope() as s:
+        assert s.get(Board, bid).auto_resync is False
+    client.post(f"/boards/{bid}/toggle-resync")
+    with session_scope() as s:
+        assert s.get(Board, bid).auto_resync is True

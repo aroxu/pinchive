@@ -12,8 +12,8 @@
       </div>
       <div class="row">
         <div class="count-item">
-          <span class="stat-sm">{{ pins|length }}</span>
-          <span class="k muted caption-uc">pins on disk</span>
+          <span class="stat-sm">{{ total }}</span>
+          <span class="k muted caption-uc">{{ 'matching pins' if (q or active_type or dupes) else 'pins on disk' }}</span>
         </div>
         <button class="btn btn-primary btn-sm" hx-post="/boards/{{ board.id }}/redownload"
                 hx-target="this" hx-swap="none">Re-sync</button>
@@ -101,6 +101,8 @@
         </div>
         {% endfor %}
       </div>
+
+      {% include "partials/pagination.html" %}
     {% endif %}
   </div>
 </section>

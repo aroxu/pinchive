@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from math import ceil
 from pathlib import Path
+from urllib.parse import urlencode
 
 from arq import create_pool
 from arq.connections import ArqRedis, RedisSettings
@@ -11,7 +13,7 @@ from fastapi import Depends, FastAPI, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlmodel import Session, select
 
 from app import auth, dedup
@@ -81,6 +83,38 @@ def is_htmx(request: Request) -> bool:
     return request.headers.get("HX-Request") == "true"
 
 
+def _count(session: Session, stmt) -> int:
+    return session.exec(
+        select(func.count()).select_from(stmt.order_by(None).subquery())
+    ).one()
+
+
+def _paginate(session: Session, stmt, page: int, per_page: int):
+    """Return (items, page, pages, total) for a select statement."""
+    total = _count(session, stmt)
+    pages = max(1, ceil(total / per_page))
+    page = min(max(1, page), pages)
+    items = session.exec(
+        stmt.offset((page - 1) * per_page).limit(per_page)
+    ).all()
+    return items, page, pages, total
+
+
+def _paginate_list(rows: list, page: int, per_page: int):
+    total = len(rows)
+    pages = max(1, ceil(total / per_page)) if total else 1
+    page = min(max(1, page), pages)
+    start = (page - 1) * per_page
+    return rows[start:start + per_page], page, pages, total
+
+
+def _base_qs(**params) -> str:
+    """Query string (trailing '&') of the active filters, minus `page`."""
+    clean = {k: v for k, v in params.items() if v not in ("", None, False)}
+    s = urlencode(clean)
+    return f"{s}&" if s else ""
+
+
 # --------------------------------------------------------------------------- #
 # pages
 # --------------------------------------------------------------------------- #
@@ -90,6 +124,7 @@ def index(
     q: str = Query(default=""),
     status: str = Query(default=""),
     tag: str = Query(default=""),
+    page: int = Query(default=1),
     session: Session = Depends(get_session),
 ):
     stmt = select(Board)
@@ -101,13 +136,17 @@ def index(
         )
     if status and status in BoardStatus.__members__:
         stmt = stmt.where(Board.status == BoardStatus(status))
-    if tag.strip():
+    tag = tag.strip()
+    if tag:
         stmt = (
             stmt.join(BoardTagLink, BoardTagLink.board_id == Board.id)
             .join(Tag, Tag.id == BoardTagLink.tag_id)
-            .where(Tag.name == tag.strip())
+            .where(Tag.name == tag)
         )
-    boards = session.exec(stmt.order_by(Board.created_at.desc())).all()
+    stmt = stmt.order_by(Board.created_at.desc())
+    boards, page, pages, total = _paginate(
+        session, stmt, page, settings.per_page_boards
+    )
 
     creds = session.exec(select(Credential).order_by(Credential.name)).all()
     all_tags = session.exec(select(Tag).order_by(Tag.name)).all()
@@ -121,8 +160,12 @@ def index(
             "all_tags": all_tags,
             "q": q,
             "active_status": status,
-            "active_tag": tag.strip(),
+            "active_tag": tag,
             "statuses": list(BoardStatus.__members__.keys()),
+            "page": page,
+            "pages": pages,
+            "total": total,
+            "base_qs": _base_qs(q=q, status=status, tag=tag),
         },
     )
 
@@ -134,6 +177,7 @@ def board_detail(
     q: str = Query(default=""),
     type: str = Query(default=""),       # image | video
     dupes: str = Query(default=""),      # "1" -> only pins that have duplicates
+    page: int = Query(default=1),
     session: Session = Depends(get_session),
 ):
     board = session.get(Board, board_id)
@@ -154,11 +198,13 @@ def board_detail(
         )
     if type in ("image", "video"):
         stmt = stmt.where(Pin.media_type == type)
-    pins = session.exec(stmt.order_by(Pin.id)).all()
-
     if dupes == "1":
-        dup_ids = _duplicate_pin_ids(session)
-        pins = [p for p in pins if p.id in dup_ids]
+        # Push the (in-memory) duplicate set into SQL so pagination is correct.
+        dup_ids = _duplicate_pin_ids(session) or {-1}
+        stmt = stmt.where(Pin.id.in_(dup_ids))
+
+    stmt = stmt.order_by(Pin.id)
+    pins, page, pages, total = _paginate(session, stmt, page, settings.per_page_pins)
 
     all_tags = session.exec(select(Tag).order_by(Tag.name)).all()
     return templates.TemplateResponse(
@@ -171,6 +217,10 @@ def board_detail(
             "q": q,
             "active_type": type,
             "dupes": dupes == "1",
+            "page": page,
+            "pages": pages,
+            "total": total,
+            "base_qs": _base_qs(q=q, type=type, dupes=dupes),
         },
     )
 
@@ -250,6 +300,22 @@ def board_card(
     board = session.get(Board, board_id)
     if board is None:
         return HTMLResponse("", status_code=200)
+    return templates.TemplateResponse(
+        request, "partials/board_card.html", {"board": board}
+    )
+
+
+@app.post("/boards/{board_id}/toggle-resync", response_class=HTMLResponse)
+async def toggle_resync(
+    request: Request, board_id: int, session: Session = Depends(get_session)
+):
+    board = session.get(Board, board_id)
+    if board is None:
+        raise HTTPException(404, "board not found")
+    board.auto_resync = not board.auto_resync
+    session.add(board)
+    session.commit()
+    session.refresh(board)
     return templates.TemplateResponse(
         request, "partials/board_card.html", {"board": board}
     )
@@ -458,7 +524,11 @@ def _duplicate_pin_ids(session: Session) -> set[int]:
 
 
 @app.get("/duplicates", response_class=HTMLResponse)
-def duplicates_page(request: Request, session: Session = Depends(get_session)):
+def duplicates_page(
+    request: Request,
+    page: int = Query(default=1),
+    session: Session = Depends(get_session),
+):
     rows = _image_pin_rows(session)
     raw_groups = dedup.group_duplicates(rows)
     # Build view groups: keep the largest-resolution pin as the "keep" suggestion.
@@ -468,10 +538,20 @@ def duplicates_page(request: Request, session: Session = Depends(get_session)):
         pins.sort(key=lambda p: (p.width or 0) * (p.height or 0), reverse=True)
         groups.append(pins)
     total_extra = sum(len(g) - 1 for g in groups)
+    page_groups, page, pages, total = _paginate_list(
+        groups, page, settings.per_page_dupes
+    )
     return templates.TemplateResponse(
         request,
         "duplicates.html",
-        {"groups": groups, "total_extra": total_extra},
+        {
+            "groups": page_groups,
+            "total_extra": total_extra,
+            "total_groups": total,
+            "page": page,
+            "pages": pages,
+            "base_qs": "",
+        },
     )
 
 

@@ -68,7 +68,7 @@
   <div class="container">
     <div class="row between" style="margin-bottom:var(--s-lg)">
       <h2 class="display-sm">Your archive</h2>
-      <span class="caption-uc">{{ boards|length }} boards</span>
+      <span class="caption-uc">{{ total }} boards</span>
     </div>
 
     <form method="get" action="/" class="filter-bar" role="search">
@@ -106,6 +106,8 @@
         {% include "partials/board_card.html" %}
       {% endfor %}
     </div>
+
+    {% include "partials/pagination.html" %}
   </div>
 </section>
 

@@ -73,6 +73,12 @@ Full setup (login profile, local install, switch matrix):
   re-encodes/resizes (64-bit perceptual dHash, Pillow). Each group marks the
   highest-resolution copy **KEEP** and pre-selects the rest; one click removes
   the extra files from disk. Detection is non-destructive until you confirm.
+- **Pagination.** Board list, pin grids, and the Duplicates page paginate
+  (sizes configurable via `PINCHIVE_PER_PAGE_*`).
+- **Automatic re-sync.** A cron re-downloads boards every
+  `PINCHIVE_RESYNC_EVERY_HOURS` (default 24; `0` disables) to pull new pins —
+  cheap, since the per-board archive only fetches new ones. Toggle **auto-sync**
+  per board from its card to opt individual boards out.
 
 Each board keeps its **own** `--download-archive`, so a board stays a faithful
 mirror (a pin shared across boards downloads into each) while re-syncing still
@@ -94,7 +100,8 @@ arq app.tasks.WorkerSettings                        # separate terminal
 
 All env vars are `PINCHIVE_*` — see [.env.example](.env.example).
 Key ones: `MAX_CONCURRENCY` (parallel downloads), `DL_SLEEP` (politeness delay),
-`REFRESH_HOUR`/`REFRESH_MINUTE` (session re-check cron).
+`REFRESH_EVERY_HOURS` (session keep-alive cron), `RESYNC_EVERY_HOURS` (board
+auto-resync cron; `0` disables), `PER_PAGE_BOARDS`/`PER_PAGE_PINS`/`PER_PAGE_DUPES`.
 
 ## Layout
 

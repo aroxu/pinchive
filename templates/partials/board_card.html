@@ -62,6 +62,13 @@
     </form>
   </div>
 
+  <label class="autosync" title="Include this board in the periodic auto-resync">
+    <input type="checkbox" {{ 'checked' if board.auto_resync }}
+           hx-post="/boards/{{ board.id }}/toggle-resync"
+           hx-target="#board-{{ board.id }}" hx-swap="outerHTML">
+    <span>auto-sync {{ 'on' if board.auto_resync else 'off' }}</span>
+  </label>
+
   <div class="row row-wrap" style="margin-top:auto">
     <a class="btn btn-secondary btn-sm" href="/boards/{{ board.id }}">View pins</a>
     {% if not active %}

@@ -1,6 +1,11 @@
-"""Slug + per-board folder derivation."""
+"""Slug + per-board folder derivation, and the auto-resync cron."""
 
-from app.tasks import board_folder, derive_slug
+import asyncio
+
+from app.config import get_settings
+from app.db import session_scope
+from app.models import Board, BoardStatus
+from app.tasks import board_folder, derive_slug, resync_all_boards
 
 
 def test_derive_slug_board_url():
@@ -26,3 +31,55 @@ def test_same_url_boards_get_distinct_folders():
     slug = derive_slug("https://www.pinterest.com/pin/424605071112831904/")
     assert board_folder(slug, 1) != board_folder(slug, 2)
     assert board_folder(slug, 1).endswith("-1")
+
+
+# --- config schedule ---
+def test_resync_hours_enabled_and_disabled():
+    s = get_settings()
+    s.resync_every_hours = 12
+    assert s.resync_hours() == {0, 12}
+    s.resync_every_hours = 0
+    assert s.resync_hours() == set()  # disabled
+    s.resync_every_hours = 24  # restore default
+    assert s.resync_hours() == {0}
+
+
+# --- resync cron ---
+class _FakePool:
+    def __init__(self):
+        self.jobs = []
+
+    async def enqueue_job(self, name, *args):
+        self.jobs.append((name, args))
+
+
+def _mk(status, auto):
+    with session_scope() as s:
+        b = Board(url="https://www.pinterest.com/u/b/", slug="s", status=status,
+                  auto_resync=auto)
+        s.add(b)
+        s.flush()
+        return b.id
+
+
+def test_resync_enqueues_only_idle_opted_in_boards():
+    done_on = _mk(BoardStatus.done, True)
+    error_on = _mk(BoardStatus.error, True)
+    partial_on = _mk(BoardStatus.partial, True)
+    _mk(BoardStatus.downloading, True)   # busy -> skip
+    _mk(BoardStatus.queued, True)        # already queued -> skip
+    _mk(BoardStatus.done, False)         # opted out -> skip
+
+    pool = _FakePool()
+    res = asyncio.run(resync_all_boards({"redis": pool}))
+
+    assert res["enqueued"] == 3
+    assert all(name == "download_board" for name, _ in pool.jobs)
+    enq_ids = {args[0] for _, args in pool.jobs}
+    assert enq_ids == {done_on, error_on, partial_on}
+
+
+def test_resync_no_queue():
+    _mk(BoardStatus.done, True)
+    res = asyncio.run(resync_all_boards({"redis": None}))
+    assert res["enqueued"] == 0

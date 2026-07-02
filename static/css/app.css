@@ -415,6 +415,19 @@ table.cred tr:last-child td { border-bottom: none; }
   padding: 3px 6px; border-radius: var(--r-xs); cursor: pointer;
 }
 
+/* ---- pagination ------------------------------------------------------- */
+.pager {
+  display: flex; align-items: center; justify-content: center; gap: var(--s-md);
+  margin-top: var(--s-xl);
+}
+
+/* ---- auto-sync toggle ------------------------------------------------- */
+.autosync {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--muted); cursor: pointer; user-select: none;
+}
+.autosync input { accent-color: var(--primary); cursor: pointer; }
+
 /* ---- utilities -------------------------------------------------------- */
 .hr { height: 1px; background: var(--hairline); border: 0; margin: 0; }
 .spacer-sm { height: var(--s-sm); }

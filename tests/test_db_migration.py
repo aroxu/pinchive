@@ -35,3 +35,16 @@ def test_migrate_adds_missing_columns_to_old_table():
     _migrate()
     cols = _pin_cols()
     assert {"content_sha256", "phash", "file_size", "title", "description"} <= cols
+
+
+def test_migrate_adds_board_auto_resync():
+    with engine.begin() as c:
+        c.execute(text("DROP TABLE IF EXISTS board"))
+        c.execute(text(
+            "CREATE TABLE board (id INTEGER PRIMARY KEY, url VARCHAR, status VARCHAR)"
+        ))
+    board_cols = {col["name"] for col in inspect(engine).get_columns("board")}
+    assert "auto_resync" not in board_cols
+    _migrate()
+    board_cols = {col["name"] for col in inspect(engine).get_columns("board")}
+    assert "auto_resync" in board_cols

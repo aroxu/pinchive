@@ -206,6 +206,44 @@ async def refresh_all_credentials(ctx: dict) -> dict:
     return {"checked": len(ids)}
 
 
+# --------------------------------------------------------------------------- #
+# board auto-resync
+# --------------------------------------------------------------------------- #
+_RESYNCABLE = (BoardStatus.done, BoardStatus.partial, BoardStatus.error)
+
+
+async def resync_all_boards(ctx: dict) -> dict:
+    """Cron: enqueue a re-download for every opted-in board that's idle.
+
+    The per-board --download-archive makes this cheap: only new pins are
+    actually fetched. Boards mid-flight (queued/downloading) are skipped so we
+    never double-queue.
+    """
+    with session_scope() as s:
+        ids = [
+            b.id
+            for b in s.exec(
+                select(Board).where(
+                    Board.auto_resync == True,  # noqa: E712 (SQL boolean)
+                    Board.status.in_(_RESYNCABLE),
+                )
+            ).all()
+            if b.id is not None
+        ]
+
+    pool = ctx.get("redis")
+    if pool is None:
+        return {"enqueued": 0, "error": "no queue"}
+    for bid in ids:
+        with session_scope() as s:
+            b = s.get(Board, bid)
+            if b is not None:
+                b.status = BoardStatus.queued
+                b.updated_at = _now()
+        await pool.enqueue_job("download_board", bid)
+    return {"enqueued": len(ids)}
+
+
 async def _attempt_auto_refresh(cred_id: int) -> None:
     """Optional Playwright re-login. No-op unless the extra is installed and a
     stored account/password profile exists. Intentionally soft-failing."""
@@ -227,15 +265,29 @@ async def _startup(ctx: dict) -> None:
     init_db()
 
 
-class WorkerSettings:
-    functions = [download_board, refresh_credential]
-    cron_jobs = [
+def _build_cron_jobs() -> list:
+    jobs = [
         cron(
             refresh_all_credentials,
             hour=settings.refresh_hours(),
             minute=settings.refresh_minute,
         )
     ]
+    resync_hours = settings.resync_hours()
+    if resync_hours:  # empty set => auto-resync disabled
+        jobs.append(
+            cron(
+                resync_all_boards,
+                hour=resync_hours,
+                minute=settings.resync_minute,
+            )
+        )
+    return jobs
+
+
+class WorkerSettings:
+    functions = [download_board, refresh_credential]
+    cron_jobs = _build_cron_jobs()
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
     max_jobs = settings.max_concurrency
     on_startup = _startup

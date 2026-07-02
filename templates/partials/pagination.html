@@ -1,0 +1,15 @@
+{% if pages > 1 %}
+<nav class="pager" aria-label="pagination">
+  {% if page > 1 %}
+  <a class="btn btn-secondary btn-sm" href="?{{ base_qs }}page={{ page - 1 }}">← Prev</a>
+  {% else %}
+  <span class="btn btn-secondary btn-sm" aria-disabled="true" style="opacity:.4">← Prev</span>
+  {% endif %}
+  <span class="caption-uc" style="color:var(--muted)">Page {{ page }} / {{ pages }}</span>
+  {% if page < pages %}
+  <a class="btn btn-secondary btn-sm" href="?{{ base_qs }}page={{ page + 1 }}">Next →</a>
+  {% else %}
+  <span class="btn btn-secondary btn-sm" aria-disabled="true" style="opacity:.4">Next →</span>
+  {% endif %}
+</nav>
+{% endif %}

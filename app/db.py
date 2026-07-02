@@ -56,6 +56,9 @@ _ADDED_COLUMNS = {
         "phash": "VARCHAR",
         "file_size": "INTEGER",
     },
+    "board": {
+        "auto_resync": "BOOLEAN DEFAULT 1",
+    },
 }
 
 

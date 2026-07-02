@@ -37,11 +37,29 @@ class Settings(BaseSettings):
     # and a stored login profile. See docs/credential-refresh.md.
     use_playwright_fallback: bool = Field(default=False)
 
+    # Automatic board re-sync: periodically re-download boards to pick up new
+    # pins (cheap — the per-board archive means only new pins are fetched).
+    # Runs every N hours; 0 disables the cron entirely. Boards can opt out
+    # individually (Board.auto_resync).
+    resync_every_hours: int = Field(default=24, ge=0, le=24)
+    resync_minute: int = Field(default=30, ge=0, le=59)
+
+    # UI page sizes.
+    per_page_boards: int = Field(default=24, ge=1, le=200)
+    per_page_pins: int = Field(default=60, ge=1, le=500)
+    per_page_dupes: int = Field(default=20, ge=1, le=200)
+
     def refresh_hours(self) -> set[int]:
         """The set of hours the keep-alive cron fires at."""
         if self.refresh_every_hours and self.refresh_every_hours > 0:
             return set(range(0, 24, self.refresh_every_hours))
         return {self.refresh_hour}
+
+    def resync_hours(self) -> set[int]:
+        """Hours the board auto-resync cron fires at (empty = disabled)."""
+        if self.resync_every_hours and self.resync_every_hours > 0:
+            return set(range(0, 24, self.resync_every_hours))
+        return set()
 
     # ---- derived paths ----
     @property
