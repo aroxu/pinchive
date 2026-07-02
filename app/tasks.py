@@ -39,6 +39,12 @@ def derive_slug(url: str) -> str:
     return slug or "board"
 
 
+def board_folder(slug: str, board_id: int) -> str:
+    """Per-board directory name. The id suffix guarantees uniqueness so two
+    boards with the same derived slug never share a folder."""
+    return f"{slug}-{board_id}"
+
+
 # --------------------------------------------------------------------------- #
 # download job
 # --------------------------------------------------------------------------- #
@@ -59,7 +65,11 @@ async def download_board(ctx: dict, board_id: int) -> dict:
         url = board.url
         cred_id = board.credential_id
 
-    dest = settings.boards_dir / slug
+    # Folder is suffixed with the board id so two boards that derive the same
+    # slug (e.g. the same URL added twice) never share a directory and clobber
+    # each other's files / archive.
+    folder = board_folder(slug, board_id)
+    dest = settings.boards_dir / folder
     # Per-board archive: each board stays a faithful mirror of its Pinterest
     # contents (a pin shared across boards downloads into each), while re-syncing
     # a board still skips pins it already has. Cross-board / cross-pin duplicate
@@ -125,7 +135,7 @@ async def download_board(ctx: dict, board_id: int) -> dict:
         }
         seen: set[str] = set()
         for m in result.media:
-            rel = f"{slug}/{m.rel_path}"
+            rel = f"{folder}/{m.rel_path}"
             seen.add(rel)
             pin = existing.get(rel) or Pin(board_id=board_id, rel_path=rel)
             pin.pinterest_id = m.pinterest_id
