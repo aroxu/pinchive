@@ -1,11 +1,14 @@
 """Slug + per-board folder derivation, and the auto-resync cron."""
 
 import asyncio
+import shutil
+
+from sqlmodel import select
 
 from app.config import get_settings
 from app.db import session_scope
-from app.models import Board, BoardStatus
-from app.tasks import board_folder, derive_slug, resync_all_boards
+from app.models import Board, BoardStatus, Pin
+from app.tasks import _sync_partial_pins, board_folder, derive_slug, resync_all_boards
 
 
 def test_derive_slug_board_url():
@@ -83,3 +86,30 @@ def test_resync_no_queue():
     _mk(BoardStatus.done, True)
     res = asyncio.run(resync_all_boards({"redis": None}))
     assert res["enqueued"] == 0
+
+
+def test_sync_partial_pins_creates_rows_incrementally(make_image):
+    s = get_settings()
+    with session_scope() as sess:
+        b = Board(url="https://x/u/b/", slug="s", status=BoardStatus.downloading)
+        sess.add(b)
+        sess.flush()
+        bid = b.id
+    folder = board_folder("s", bid)
+    dest = s.boards_dir / folder
+    dest.mkdir(parents=True, exist_ok=True)
+    shutil.copy(make_image(), dest / "a.jpg")
+    shutil.copy(make_image(), dest / "b.jpg")
+
+    _sync_partial_pins(bid, folder, dest)
+    with session_scope() as sess:
+        pins = sess.exec(select(Pin).where(Pin.board_id == bid)).all()
+        assert {p.filename for p in pins} == {"a.jpg", "b.jpg"}
+        assert all(p.content_sha256 is None for p in pins)  # light, no hashes yet
+
+    # a new file arrives; a second sync adds only it (no duplicates)
+    shutil.copy(make_image(), dest / "c.jpg")
+    _sync_partial_pins(bid, folder, dest)
+    with session_scope() as sess:
+        pins = sess.exec(select(Pin).where(Pin.board_id == bid)).all()
+        assert {p.filename for p in pins} == {"a.jpg", "b.jpg", "c.jpg"}

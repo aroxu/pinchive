@@ -13,6 +13,7 @@ Output contract (default verbosity, stderr merged into stdout):
 from __future__ import annotations
 
 import json
+import logging
 import subprocess
 import sys
 from collections import deque
@@ -21,6 +22,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from app import dedup
+
+# Emits to stdout (see tasks._startup) so `docker compose logs -f worker` shows
+# per-file download activity: successes, skips (with reason), and errors.
+logger = logging.getLogger("pinchive.download")
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
 VIDEO_EXTS = {".mp4", ".webm", ".mov", ".mkv", ".m4v"}
@@ -136,14 +141,19 @@ def run_download(
             continue
         if line.startswith("# "):
             prog.skipped += 1
+            logger.info("skip · %s (already downloaded)", line[2:].strip())
         elif line.startswith("["):
             log.append(line)
             low = line.lower()
             if "[error]" in low:
                 prog.errors += 1
+                logger.warning("%s", line)
+            else:
+                logger.info("%s", line)
         else:
             prog.downloaded += 1
             prog.last_line = line
+            logger.info("ok   · %s", line)
         since_flush += 1
         if on_progress and since_flush >= progress_every:
             since_flush = 0
@@ -184,8 +194,15 @@ def extract_board_name(dest: Path) -> str | None:
     return None
 
 
-def scan_media(dest: Path) -> list[MediaItem]:
-    """Walk a board dir and build MediaItem rows, enriching from sidecar JSON."""
+def scan_media(
+    dest: Path, *, with_hashes: bool = True, with_sidecar: bool = True
+) -> list[MediaItem]:
+    """Walk a board dir and build MediaItem rows.
+
+    The full scan (default) enriches from sidecar JSON and computes hashes. A
+    light scan (both flags False) just lists media files — used mid-download to
+    surface partial results cheaply, before sidecars/hashes are worth computing.
+    """
     items: list[MediaItem] = []
     if not dest.exists():
         return items
@@ -198,11 +215,13 @@ def scan_media(dest: Path) -> list[MediaItem]:
         media_type = "video" if ext in VIDEO_EXTS else "image"
         rel = path.relative_to(dest).as_posix()
         item = MediaItem(filename=path.name, rel_path=rel, media_type=media_type)
-        _enrich_from_sidecar(path, item)
-        h = dedup.compute(path, is_image=(media_type == "image"))
-        item.content_sha256 = h.sha256
-        item.phash = h.phash
-        item.file_size = h.size
+        if with_sidecar:
+            _enrich_from_sidecar(path, item)
+        if with_hashes:
+            h = dedup.compute(path, is_image=(media_type == "image"))
+            item.content_sha256 = h.sha256
+            item.phash = h.phash
+            item.file_size = h.size
         items.append(item)
     return items
 

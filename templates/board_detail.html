@@ -71,6 +71,10 @@
       {% endif %}
     </form>
 
+    {% set active = board.status in [BoardStatus.pending, BoardStatus.queued, BoardStatus.downloading] %}
+    <div id="pins-live"
+         {% if active %}hx-get="{{ request.url }}" hx-trigger="every 3s"
+         hx-target="#pins-live" hx-select="#pins-live" hx-swap="outerHTML"{% endif %}>
     {% if not pins %}
       <div class="card">
         <p class="title-md">
@@ -135,43 +139,49 @@
       </div>
 
       {% include "partials/pagination.html" %}
-
-      <script>
-        (function () {
-          var boxes = function () {
-            return Array.prototype.slice.call(document.querySelectorAll('.pin-select'));
-          };
-          var count = document.getElementById('sel-count');
-          var all = document.getElementById('select-all');
-          function refresh() {
-            var n = boxes().filter(function (b) { return b.checked; }).length;
-            if (count) count.textContent = (count.dataset.tmpl || '{n}').replace('{n}', n);
-          }
-          if (all) all.addEventListener('change', function () {
-            boxes().forEach(function (b) { b.checked = all.checked; });
-            refresh();
-          });
-          document.addEventListener('change', function (e) {
-            if (e.target && e.target.classList.contains('pin-select')) refresh();
-          });
-          window.pinchiveBulkSubmit = function (e) {
-            var btn = e.submitter;
-            var selected = boxes().filter(function (b) { return b.checked; });
-            if (!selected.length) { alert("{{ t('alert.select_pins') }}"); return false; }
-            if (btn && btn.dataset.confirm && !confirm(btn.dataset.confirm)) return false;
-            var form = document.getElementById('bulk-form');
-            form.querySelectorAll('input[name="pin_ids"]').forEach(function (n) { n.remove(); });
-            selected.forEach(function (b) {
-              var h = document.createElement('input');
-              h.type = 'hidden'; h.name = 'pin_ids'; h.value = b.value;
-              form.appendChild(h);
-            });
-            return true;
-          };
-          refresh();
-        })();
-      </script>
     {% endif %}
+    </div>
+
+    <!-- Bulk selection uses event delegation + a bind guard so it keeps working
+         after the grid is swapped by the download live-poll above. -->
+    <script>
+      (function () {
+        if (window.__pinchiveBulkBound) return;
+        window.__pinchiveBulkBound = true;
+        function boxes() {
+          return Array.prototype.slice.call(document.querySelectorAll('.pin-select'));
+        }
+        function refresh() {
+          var c = document.getElementById('sel-count');
+          if (!c) return;
+          var n = boxes().filter(function (b) { return b.checked; }).length;
+          c.textContent = (c.dataset.tmpl || '{n}').replace('{n}', n);
+        }
+        document.addEventListener('change', function (e) {
+          if (!e.target) return;
+          if (e.target.id === 'select-all') {
+            boxes().forEach(function (b) { b.checked = e.target.checked; });
+            refresh();
+          } else if (e.target.classList.contains('pin-select')) {
+            refresh();
+          }
+        });
+        window.pinchiveBulkSubmit = function (e) {
+          var btn = e.submitter;
+          var selected = boxes().filter(function (b) { return b.checked; });
+          if (!selected.length) { alert("{{ t('alert.select_pins') }}"); return false; }
+          if (btn && btn.dataset.confirm && !confirm(btn.dataset.confirm)) return false;
+          var form = document.getElementById('bulk-form');
+          form.querySelectorAll('input[name="pin_ids"]').forEach(function (n) { n.remove(); });
+          selected.forEach(function (b) {
+            var h = document.createElement('input');
+            h.type = 'hidden'; h.name = 'pin_ids'; h.value = b.value;
+            form.appendChild(h);
+          });
+          return true;
+        };
+      })();
+    </script>
   </div>
 </section>
 {% endblock %}

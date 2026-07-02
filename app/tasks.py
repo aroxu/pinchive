@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import logging
 import re
+import sys
+import time
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 
@@ -15,10 +18,11 @@ from sqlmodel import select
 from app import auth
 from app.config import get_settings
 from app.db import init_db, session_scope
-from app.downloader import Progress, run_download
+from app.downloader import Progress, run_download, scan_media
 from app.models import Board, BoardStatus, Credential, CredentialStatus, Pin
 
 settings = get_settings()
+logger = logging.getLogger("pinchive.download")
 
 
 def _now() -> datetime:
@@ -80,6 +84,9 @@ async def download_board(ctx: dict, board_id: int) -> dict:
         cf = auth.cookies_path(cred_id)
         cookies_file = cf if cf.exists() else None
 
+    logger.info("▶ board %s: downloading %s", board_id, url)
+    _last_pin_sync = [0.0]
+
     def on_progress(p: Progress) -> None:
         with session_scope() as s:
             b = s.get(Board, board_id)
@@ -89,6 +96,12 @@ async def download_board(ctx: dict, board_id: int) -> dict:
             b.skipped_count = p.skipped
             b.error_count = p.errors
             b.updated_at = _now()
+        # Surface partial results so images show while the board is still
+        # downloading (throttled — a light scan, no hashing yet).
+        now = time.monotonic()
+        if now - _last_pin_sync[0] >= 2.0:
+            _last_pin_sync[0] = now
+            _sync_partial_pins(board_id, folder, dest)
 
     result = await loop.run_in_executor(
         None,
@@ -156,12 +169,48 @@ async def download_board(ctx: dict, board_id: int) -> dict:
             if rel not in seen:
                 s.delete(pin)
 
+    status = "done" if result.ok else ("partial" if result.partial else "error")
+    if result.ok:
+        logger.info(
+            "✔ board %s done: %s downloaded, %s skipped",
+            board_id, result.downloaded, result.skipped,
+        )
+    elif result.partial:
+        logger.warning(
+            "◐ board %s partial: %s downloaded, %s skipped, %s errors — see log",
+            board_id, result.downloaded, result.skipped, result.errors,
+        )
+    else:
+        logger.error(
+            "x board %s failed: %s", board_id,
+            _last_error_line(result.log_tail) or "download failed",
+        )
+
     return {
         "downloaded": result.downloaded,
         "skipped": result.skipped,
         "errors": result.errors,
-        "status": "done" if result.ok else ("partial" if result.partial else "error"),
+        "status": status,
     }
+
+
+def _sync_partial_pins(board_id: int, folder: str, dest) -> None:
+    """Insert Pin rows for media already on disk (light scan, no hashes) so the
+    board detail can show downloaded images while the job is still running."""
+    items = scan_media(dest, with_hashes=False, with_sidecar=False)
+    if not items:
+        return
+    with session_scope() as s:
+        existing = set(
+            s.exec(select(Pin.rel_path).where(Pin.board_id == board_id)).all()
+        )
+        for m in items:
+            rel = f"{folder}/{m.rel_path}"
+            if rel not in existing:
+                s.add(Pin(
+                    board_id=board_id, rel_path=rel,
+                    filename=m.filename, media_type=m.media_type,
+                ))
 
 
 def _last_error_line(log_tail: str | None) -> str | None:
@@ -262,9 +311,23 @@ async def _attempt_auto_refresh(cred_id: int) -> None:
 # --------------------------------------------------------------------------- #
 # worker settings
 # --------------------------------------------------------------------------- #
+def configure_download_logging() -> None:
+    """Send pinchive.download logs to stdout so they appear in `docker compose
+    logs -f worker`. Idempotent."""
+    lg = logging.getLogger("pinchive.download")
+    if lg.handlers:
+        return
+    h = logging.StreamHandler(sys.stdout)
+    h.setFormatter(logging.Formatter("%(asctime)s %(message)s", "%H:%M:%S"))
+    lg.addHandler(h)
+    lg.setLevel(logging.INFO)
+    lg.propagate = False
+
+
 async def _startup(ctx: dict) -> None:
     settings.ensure_dirs()
     init_db()
+    configure_download_logging()
 
 
 def _build_cron_jobs() -> list:

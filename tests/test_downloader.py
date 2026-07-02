@@ -93,3 +93,17 @@ def test_extract_board_name_absent(tmp_path):
     dest.mkdir()
     (dest / "1.jpg.json").write_text(json.dumps({"id": 1}), encoding="utf-8")
     assert downloader.extract_board_name(dest) is None
+
+
+def test_scan_media_light_skips_hashes_and_sidecar(tmp_path, make_image):
+    import shutil
+    dest = tmp_path / "b"
+    dest.mkdir()
+    shutil.copy(make_image(), dest / "x.jpg")
+    (dest / "x.jpg.json").write_text(json.dumps({"title": "t"}), encoding="utf-8")
+    items = downloader.scan_media(dest, with_hashes=False, with_sidecar=False)
+    assert len(items) == 1
+    m = items[0]
+    assert m.media_type == "image" and m.filename == "x.jpg"
+    assert m.content_sha256 is None and m.phash is None
+    assert m.title is None  # sidecar skipped

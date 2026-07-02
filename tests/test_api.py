@@ -106,6 +106,20 @@ def test_search_and_status_filter(client):
     assert "Interior Ideas" not in client.get("/?status=error").text
 
 
+def test_board_detail_polls_while_downloading(client):
+    bid = _mk_board(slug="dl", status=BoardStatus.downloading)
+    r = client.get(f"/boards/{bid}").text
+    assert 'id="pins-live"' in r
+    assert "every 3s" in r  # live-updates the grid while downloading
+
+
+def test_board_detail_no_poll_when_done(client):
+    bid = _mk_board(slug="dn", status=BoardStatus.done)
+    r = client.get(f"/boards/{bid}").text
+    assert 'id="pins-live"' in r
+    assert "every 3s" not in r  # settled -> no polling
+
+
 def test_board_detail_pin_type_filter(client):
     bid = _mk_board(slug="mix")
     _mk_pin(bid, "mix/a.jpg", media="image")
