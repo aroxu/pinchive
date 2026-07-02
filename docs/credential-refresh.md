@@ -35,22 +35,35 @@ re-login** to mint new cookies from a stored username/password.
 
 ### Enable it (Docker)
 
-Two switches, both in `.env`:
+The fallback needs chromium, which only ships in the **`:playwright`** image
+variant (the default `:latest` is slim). Two ways to get it:
+
+**Pull the published variant** (no local build):
 
 ```dotenv
-INSTALL_PLAYWRIGHT=true                  # build: bake chromium into the image
-PINCHIVE_USE_PLAYWRIGHT_FALLBACK=true    # run:  actually attempt re-login
+# .env
+PINCHIVE_IMAGE=ghcr.io/aroxu/pinchive:playwright
+PINCHIVE_USE_PLAYWRIGHT_FALLBACK=true
+```
+```bash
+docker compose pull && docker compose up -d
 ```
 
-Then rebuild so chromium is baked in:
+**Or build it locally:**
 
+```dotenv
+# .env
+INSTALL_PLAYWRIGHT=true                  # bake chromium into the local build
+PINCHIVE_USE_PLAYWRIGHT_FALLBACK=true
+```
 ```bash
 docker compose up --build -d
 ```
 
-`INSTALL_PLAYWRIGHT=true` adds the `refresh` extra + chromium and its OS
-dependencies to the image (~400 MB), installed to `/ms-playwright`. Leaving it
-`false` keeps the default image slim; the fallback simply stays a no-op.
+Chromium + its OS deps add ~400 MB (installed to `/ms-playwright`). The slim
+image simply keeps the fallback a no-op. Verified end-to-end on a real deploy:
+chromium drives Pinterest's login form; a failed login (bad creds / captcha /
+2FA) now returns without saving cookies, so it never clobbers good state.
 
 ### Provide the login profile
 

@@ -23,6 +23,13 @@ settings = get_settings()
 
 
 async def relogin(cred_id: int) -> bool:
+    """Attempt a headless re-login. Returns True ONLY if the session is verified
+    authenticated afterwards — a failed login (wrong creds, captcha, 2FA) does
+    not save cookies or report success, so it never clobbers good state.
+
+    Note: Pinterest's login is a client-rendered SPA; `page.fill` auto-waits for
+    the form to render, so we don't need an explicit wait for `#email`.
+    """
     login_file = settings.cookies_dir / f"{cred_id}.login.json"
     if not login_file.exists():
         return False
@@ -32,18 +39,29 @@ async def relogin(cred_id: int) -> bool:
     if not account or not password:
         return False
 
-    from playwright.async_api import async_playwright  # lazy import
+    from playwright.async_api import TimeoutError as PWTimeout  # lazy import
+    from playwright.async_api import async_playwright
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         try:
-            ctx = await browser.new_context()
+            ctx = await browser.new_context(user_agent=auth._UA)
             page = await ctx.new_page()
-            await page.goto("https://www.pinterest.com/login/", wait_until="domcontentloaded")
-            await page.fill("#email", account)
-            await page.fill("#password", password)
-            await page.click("button[type=submit]")
-            await page.wait_for_load_state("networkidle", timeout=30000)
+            await page.goto(
+                "https://www.pinterest.com/login/",
+                wait_until="domcontentloaded",
+                timeout=45000,
+            )
+            await page.fill("#email", account, timeout=30000)
+            await page.fill("#password", password, timeout=15000)
+            await page.click("button[type=submit]", timeout=15000)
+            try:
+                await page.wait_for_load_state("networkidle", timeout=30000)
+            except PWTimeout:
+                pass  # networkidle is flaky; the auth check below is what matters
+
+            if not await _is_authenticated(page):
+                return False  # login didn't take — leave existing cookies alone
 
             cookies = await ctx.cookies()
             payload = json.dumps(
@@ -63,3 +81,18 @@ async def relogin(cred_id: int) -> bool:
             return True
         finally:
             await browser.close()
+
+
+async def _is_authenticated(page) -> bool:
+    """Confirm the browser session is logged in by reading Pinterest's
+    `is_authenticated` flag off a login-gated page (same signal as auth._classify)."""
+    try:
+        await page.goto(
+            "https://www.pinterest.com/settings/",
+            wait_until="domcontentloaded",
+            timeout=30000,
+        )
+        body = await page.content()
+    except Exception:  # noqa: BLE001
+        return False
+    return auth._AUTH_TRUE.search(body) is not None

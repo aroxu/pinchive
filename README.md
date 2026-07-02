@@ -30,6 +30,21 @@ docker compose up --build -d
 `web` serves the UI, `worker` runs downloads, `redis` is the job broker.
 Downloads land in `./data/boards/<slug>/`; the SQLite db in `./data/pinchive.db`.
 
+## Docker images
+
+Two published variants (built from the one Dockerfile via
+[docker-bake.hcl](docker-bake.hcl), pushed to GHCR by
+[the CI workflow](.github/workflows/docker-publish.yml)):
+
+| Tag | Contents | Size | Use |
+|---|---|---|---|
+| `ghcr.io/aroxu/pinchive:latest` | slim (no browser) | ~1 GB | default |
+| `ghcr.io/aroxu/pinchive:playwright` | + chromium | ~1.4 GB | auto re-login fallback |
+
+Pull instead of building by setting `PINCHIVE_IMAGE` in `.env`, then
+`docker compose pull && docker compose up -d`. Build both locally with
+`docker buildx bake`.
+
 ## Private boards
 
 1. Log in to pinterest.com in your browser.

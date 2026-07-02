@@ -12,13 +12,15 @@ services:
       retries: 5
 
   web:
+    # Pull a published variant by setting PINCHIVE_IMAGE (e.g.
+    #   PINCHIVE_IMAGE=ghcr.io/aroxu/pinchive:playwright) then `docker compose up -d`.
+    # Or build locally with `docker compose up --build` (INSTALL_PLAYWRIGHT toggles
+    # the browser into the local build).
+    image: ${PINCHIVE_IMAGE:-pinchive:latest}
     build:
       context: .
       args:
-        # Bake Playwright + chromium into the shared image only when opted in.
-        # Set INSTALL_PLAYWRIGHT=true in .env, then `docker compose up --build`.
         INSTALL_PLAYWRIGHT: ${INSTALL_PLAYWRIGHT:-false}
-    image: pinchive:latest
     restart: unless-stopped
     env_file:
       - path: .env
@@ -35,7 +37,7 @@ services:
         condition: service_healthy
 
   worker:
-    image: pinchive:latest
+    image: ${PINCHIVE_IMAGE:-pinchive:latest}
     restart: unless-stopped
     env_file:
       - path: .env
