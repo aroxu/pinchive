@@ -4,7 +4,7 @@
 {% block content %}
 <section class="section">
   <div class="container">
-    <a class="body-sm muted" href="/">← Boards</a>
+    <a class="body-sm muted" href="/">{{ t('detail.back') }}</a>
     <div class="row between row-wrap" style="margin-top:var(--s-md)">
       <div>
         <h1 class="display-md">{{ board.title or board.slug or "Board" }}</h1>
@@ -13,10 +13,10 @@
       <div class="row">
         <div class="count-item">
           <span class="stat-sm">{{ total }}</span>
-          <span class="k muted caption-uc">{{ 'matching pins' if (q or active_type or dupes) else 'pins on disk' }}</span>
+          <span class="k muted caption-uc">{{ t('stat.matching_pins') if (q or active_type or dupes) else t('stat.pins_on_disk') }}</span>
         </div>
         <button class="btn btn-primary btn-sm" hx-post="/boards/{{ board.id }}/redownload"
-                hx-target="this" hx-swap="none">Re-sync</button>
+                hx-target="this" hx-swap="none">{{ t('btn.resync') }}</button>
       </div>
     </div>
   </div>
@@ -28,12 +28,12 @@
     <div class="code-window">
       <div class="chrome">
         <span class="lamp"></span><span class="lamp"></span><span class="lamp"></span>
-        <span class="caption muted" style="margin-left:auto">gallery-dl · log tail</span>
+        <span class="caption muted" style="margin-left:auto">{{ t('log.title') }}</span>
       </div>
       <pre>{{ board.log_tail }}</pre>
       <div class="statusbar">
-        {{ board.downloaded_count }} downloaded · {{ board.skipped_count }} skipped
-        {%- if board.error_count %} · <span style="color:var(--rose)">{{ board.error_count }} errors</span>{% endif %}
+        {{ board.downloaded_count }} {{ t('count.downloaded') }} · {{ board.skipped_count }} {{ t('count.skipped') }}
+        {%- if board.error_count %} · <span style="color:var(--rose)">{{ board.error_count }} {{ t('count.errors') }}</span>{% endif %}
       </div>
     </div>
   </div>
@@ -44,42 +44,42 @@
   <div class="container">
     <form method="get" action="/boards/{{ board.id }}" class="filter-bar" role="search">
       <input class="input grow" type="search" name="q" value="{{ q }}"
-             placeholder="Search pins (title, filename, source)…">
+             placeholder="{{ t('filter.search_pins') }}">
       <select class="input" name="type" onchange="this.form.submit()">
-        <option value="">All media</option>
-        <option value="image" {{ 'selected' if active_type == 'image' }}>Images</option>
-        <option value="video" {{ 'selected' if active_type == 'video' }}>Videos</option>
+        <option value="">{{ t('media.all') }}</option>
+        <option value="image" {{ 'selected' if active_type == 'image' }}>{{ t('media.images') }}</option>
+        <option value="video" {{ 'selected' if active_type == 'video' }}>{{ t('media.videos') }}</option>
       </select>
-      <select class="input" name="sort" onchange="this.form.submit()" title="Sort">
-        <option value="new"   {{ 'selected' if active_sort == 'new' }}>Newest</option>
-        <option value="old"   {{ 'selected' if active_sort == 'old' }}>Oldest</option>
-        <option value="big"   {{ 'selected' if active_sort == 'big' }}>Largest</option>
-        <option value="small" {{ 'selected' if active_sort == 'small' }}>Smallest</option>
-        <option value="name"  {{ 'selected' if active_sort == 'name' }}>Name</option>
+      <select class="input" name="sort" onchange="this.form.submit()">
+        <option value="new"   {{ 'selected' if active_sort == 'new' }}>{{ t('sort.newest') }}</option>
+        <option value="old"   {{ 'selected' if active_sort == 'old' }}>{{ t('sort.oldest') }}</option>
+        <option value="big"   {{ 'selected' if active_sort == 'big' }}>{{ t('sort.largest') }}</option>
+        <option value="small" {{ 'selected' if active_sort == 'small' }}>{{ t('sort.smallest') }}</option>
+        <option value="name"  {{ 'selected' if active_sort == 'name' }}>{{ t('sort.name') }}</option>
       </select>
-      <select class="input" name="view" onchange="this.form.submit()" title="Thumbnail size">
-        <option value="s" {{ 'selected' if active_view == 's' }}>Small</option>
-        <option value="m" {{ 'selected' if active_view == 'm' }}>Medium</option>
-        <option value="l" {{ 'selected' if active_view == 'l' }}>Large</option>
+      <select class="input" name="view" onchange="this.form.submit()">
+        <option value="s" {{ 'selected' if active_view == 's' }}>{{ t('view.small') }}</option>
+        <option value="m" {{ 'selected' if active_view == 'm' }}>{{ t('view.medium') }}</option>
+        <option value="l" {{ 'selected' if active_view == 'l' }}>{{ t('view.large') }}</option>
       </select>
       <label class="tag" style="cursor:pointer">
         <input type="checkbox" name="dupes" value="1" {{ 'checked' if dupes }}
-               onchange="this.form.submit()"> duplicates only
+               onchange="this.form.submit()"> {{ t('filter.dupes_only') }}
       </label>
       {% if q or active_type or dupes or active_sort != 'new' or active_view != 'm' %}
-      <a class="btn btn-ghost" href="/boards/{{ board.id }}">Clear</a>
+      <a class="btn btn-ghost" href="/boards/{{ board.id }}">{{ t('btn.clear') }}</a>
       {% endif %}
     </form>
 
     {% if not pins %}
       <div class="card">
         <p class="title-md">
-          {% if q or active_type or dupes %}No matching pins.{% else %}No media yet.{% endif %}
+          {% if q or active_type or dupes %}{{ t('empty.no_matching_pins_title') }}{% else %}{{ t('empty.no_media_title') }}{% endif %}
         </p>
         <p class="muted">
-          {% if q or active_type or dupes %}Try clearing filters.
-          {% elif board.status == BoardStatus.downloading %}Download in progress — check back shortly.
-          {% else %}Nothing downloaded. Try Re-sync, or check the log above.{% endif %}
+          {% if q or active_type or dupes %}{{ t('empty.try_clear') }}
+          {% elif board.status == BoardStatus.downloading %}{{ t('empty.downloading') }}
+          {% else %}{{ t('empty.no_media_body') }}{% endif %}
         </p>
       </div>
     {% else %}
@@ -88,15 +88,16 @@
       <form method="post" action="/pins/bulk-tag" id="bulk-form" class="bulk-bar"
             onsubmit="return pinchiveBulkSubmit(event)">
         <label class="tag" style="cursor:pointer">
-          <input type="checkbox" id="select-all"> select all
+          <input type="checkbox" id="select-all"> {{ t('bulk.select_all') }}
         </label>
-        <span class="caption-uc" id="sel-count" style="color:var(--muted)">0 selected</span>
-        <input class="input" name="name" placeholder="tag name" maxlength="30"
+        <span class="caption-uc" id="sel-count" style="color:var(--muted)"
+              data-tmpl="{{ t('bulk.selected', n='{n}') }}">{{ t('bulk.selected', n=0) }}</span>
+        <input class="input" name="name" placeholder="{{ t('bulk.tag_name') }}" maxlength="30"
                style="width:auto" aria-label="bulk tag name">
-        <button class="btn btn-secondary btn-sm" name="action" value="add">Add tag</button>
-        <button class="btn btn-secondary btn-sm" name="action" value="remove">Remove tag</button>
+        <button class="btn btn-secondary btn-sm" name="action" value="add">{{ t('bulk.add_tag') }}</button>
+        <button class="btn btn-secondary btn-sm" name="action" value="remove">{{ t('bulk.remove_tag') }}</button>
         <button class="btn btn-danger btn-sm" name="action" value="delete"
-                data-confirm="Delete the selected pins from disk?">Delete selected</button>
+                data-confirm="{{ t('confirm.bulk_delete') }}">{{ t('bulk.delete_selected') }}</button>
       </form>
 
       <div class="pin-grid view-{{ active_view }}">
@@ -109,7 +110,7 @@
           <div class="pin">
             {% if pin.media_type == "video" %}
               <video src="/media/{{ pin.rel_path }}" controls preload="none"></video>
-              <span class="vtag">video</span>
+              <span class="vtag">{{ t('media.videos') }}</span>
             {% else %}
               <a href="/media/{{ pin.rel_path }}" target="_blank" rel="noopener">
                 <img loading="lazy" src="/media/{{ pin.rel_path }}"
@@ -118,15 +119,15 @@
             {% endif %}
           </div>
           <div class="tag-row" style="margin-top:6px">
-            {% for t in pin.tags %}
-            <span class="tag">#{{ t.name }}
-              <form method="post" action="/pins/{{ pin.id }}/untag/{{ t.id }}" style="display:inline">
+            {% for tg in pin.tags %}
+            <span class="tag">#{{ tg.name }}
+              <form method="post" action="/pins/{{ pin.id }}/untag/{{ tg.id }}" style="display:inline">
                 <button class="x" type="submit" title="remove">×</button>
               </form>
             </span>
             {% endfor %}
             <form method="post" action="/pins/{{ pin.id }}/tag" class="tag-add">
-              <input name="name" placeholder="+ tag" maxlength="30" aria-label="add tag">
+              <input name="name" placeholder="{{ t('tag.add') }}" maxlength="30" aria-label="add tag">
             </form>
           </div>
         </div>
@@ -144,7 +145,7 @@
           var all = document.getElementById('select-all');
           function refresh() {
             var n = boxes().filter(function (b) { return b.checked; }).length;
-            if (count) count.textContent = n + ' selected';
+            if (count) count.textContent = (count.dataset.tmpl || '{n}').replace('{n}', n);
           }
           if (all) all.addEventListener('change', function () {
             boxes().forEach(function (b) { b.checked = all.checked; });
@@ -155,9 +156,8 @@
           });
           window.pinchiveBulkSubmit = function (e) {
             var btn = e.submitter;
-            var action = btn ? btn.value : 'add';
             var selected = boxes().filter(function (b) { return b.checked; });
-            if (!selected.length) { alert('Select some pins first.'); return false; }
+            if (!selected.length) { alert("{{ t('alert.select_pins') }}"); return false; }
             if (btn && btn.dataset.confirm && !confirm(btn.dataset.confirm)) return false;
             var form = document.getElementById('bulk-form');
             form.querySelectorAll('input[name="pin_ids"]').forEach(function (n) { n.remove(); });

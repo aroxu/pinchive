@@ -1,29 +1,28 @@
 {% extends "base.html" %}
-{% block title %}Pinchive — Boards{% endblock %}
+{% block title %}Pinchive — {{ t('nav.boards') }}{% endblock %}
 
 {% block content %}
 <section class="section">
   <div class="container">
     <div class="hero-split">
       <div class="stack">
-        <span class="badge-teal badge">Self-hosted</span>
-        <h1 class="display-xl">Archive any<br>Pinterest board.</h1>
+        <span class="badge-teal badge">{{ t('hero.badge') }}</span>
+        <h1 class="display-xl">{{ t('hero.title_1') }}<br>{{ t('hero.title_2') }}</h1>
         <p class="title-md muted" style="max-width:46ch">
-          Paste a board URL. Pinchive pulls every pin — images and video — to your
-          own disk. Private boards too, with your session cookies.
+          {{ t('hero.subtitle') }}
         </p>
         <div class="counts" style="margin-top:var(--s-md)">
           <div class="count-item">
-            <span class="n">{{ boards|length }}</span>
-            <span class="k">boards</span>
+            <span class="n">{{ total }}</span>
+            <span class="k">{{ t('stat.boards') }}</span>
           </div>
           <div class="count-item">
             <span class="n">{{ boards|sum(attribute='downloaded_count') }}</span>
-            <span class="k">pins</span>
+            <span class="k">{{ t('stat.pins') }}</span>
           </div>
           <div class="count-item">
             <span class="n">{{ credentials|length }}</span>
-            <span class="k">sessions</span>
+            <span class="k">{{ t('stat.sessions') }}</span>
           </div>
         </div>
       </div>
@@ -31,32 +30,31 @@
       <div class="code-window" id="add">
         <div class="chrome">
           <span class="lamp"></span><span class="lamp"></span><span class="lamp"></span>
-          <span class="caption muted" style="margin-left:auto">add board</span>
+          <span class="caption muted" style="margin-left:auto">{{ t('add.title') }}</span>
         </div>
         <div style="padding:var(--s-lg)">
           <form hx-post="/boards" hx-target="#board-list" hx-swap="afterbegin"
                 hx-on::after-request="if(event.detail.successful) this.reset()"
                 class="stack">
             <label class="field">
-              <span class="lbl">Board URL</span>
+              <span class="lbl">{{ t('form.board_url') }}</span>
               <input class="input" name="url" required
                      placeholder="https://www.pinterest.com/user/board/">
             </label>
             <label class="field">
-              <span class="lbl">Session (for private boards)</span>
+              <span class="lbl">{{ t('form.session') }}</span>
               <select class="input" name="credential_id">
-                <option value="">Public — no login</option>
+                <option value="">{{ t('form.public_option') }}</option>
                 {% for c in credentials %}
                 <option value="{{ c.id }}">{{ c.name }}
-                  {%- if c.status == CredentialStatus.expired %} (expired){% endif -%}
+                  {%- if c.status == CredentialStatus.expired %}{{ t('form.expired_suffix') }}{% endif -%}
                 </option>
                 {% endfor %}
               </select>
             </label>
-            <button class="btn btn-primary" type="submit">Download board</button>
+            <button class="btn btn-primary" type="submit">{{ t('btn.download_board') }}</button>
           </form>
         </div>
-        <div class="statusbar">POST /boards · enqueue → worker → gallery-dl</div>
       </div>
     </div>
   </div>
@@ -67,37 +65,37 @@
 <section class="section">
   <div class="container">
     <div class="row between" style="margin-bottom:var(--s-lg)">
-      <h2 class="display-sm">Your archive</h2>
-      <span class="caption-uc">{{ total }} boards</span>
+      <h2 class="display-sm">{{ t('archive.title') }}</h2>
+      <span class="caption-uc">{{ t('archive.count', n=total) }}</span>
     </div>
 
     <form method="get" action="/" class="filter-bar" role="search">
       <input class="input grow" type="search" name="q" value="{{ q }}"
-             placeholder="Search boards…">
+             placeholder="{{ t('filter.search_boards') }}">
       <select class="input" name="status" onchange="this.form.submit()">
-        <option value="">All status</option>
+        <option value="">{{ t('filter.all_status') }}</option>
         {% for st in statuses %}
-        <option value="{{ st }}" {{ 'selected' if active_status == st }}>{{ st }}</option>
+        <option value="{{ st }}" {{ 'selected' if active_status == st }}>{{ t('status.' + st) }}</option>
         {% endfor %}
       </select>
       {% if all_tags %}
       <select class="input" name="tag" onchange="this.form.submit()">
-        <option value="">All tags</option>
-        {% for t in all_tags %}
-        <option value="{{ t.name }}" {{ 'selected' if active_tag == t.name }}>#{{ t.name }}</option>
+        <option value="">{{ t('filter.all_tags') }}</option>
+        {% for tg in all_tags %}
+        <option value="{{ tg.name }}" {{ 'selected' if active_tag == tg.name }}>#{{ tg.name }}</option>
         {% endfor %}
       </select>
       {% endif %}
-      <button class="btn btn-secondary" type="submit">Filter</button>
+      <button class="btn btn-secondary" type="submit">{{ t('btn.filter') }}</button>
       {% if q or active_status or active_tag %}
-      <a class="btn btn-ghost" href="/">Clear</a>
+      <a class="btn btn-ghost" href="/">{{ t('btn.clear') }}</a>
       {% endif %}
     </form>
 
     {% if not boards %}
     <div class="card">
-      <p class="title-md">{% if q or active_status or active_tag %}No matching boards.{% else %}No boards yet.{% endif %}</p>
-      <p class="muted">{% if q or active_status or active_tag %}Try clearing filters.{% else %}Add a Pinterest board URL above to start archiving.{% endif %}</p>
+      <p class="title-md">{% if q or active_status or active_tag %}{{ t('empty.no_matching_boards_title') }}{% else %}{{ t('empty.no_boards_title') }}{% endif %}</p>
+      <p class="muted">{% if q or active_status or active_tag %}{{ t('empty.try_clear') }}{% else %}{{ t('empty.no_boards_body') }}{% endif %}</p>
     </div>
     {% endif %}
 
@@ -115,14 +113,13 @@
   <div class="container">
     <div class="cta-band">
       <div>
-        <h2 class="display-md">Keep sessions fresh.</h2>
+        <h2 class="display-md">{{ t('cta.title') }}</h2>
         <p style="opacity:.85;max-width:52ch">
-          Private boards need valid cookies. Pinchive re-checks them on a schedule
-          and flags any that expire — so a private archive never silently stops.
+          {{ t('cta.body') }}
         </p>
       </div>
       <a class="btn btn-secondary" style="background:var(--canvas);color:var(--on-dark)"
-         href="/credentials">Manage credentials</a>
+         href="/credentials">{{ t('btn.manage_credentials') }}</a>
     </div>
   </div>
 </section>

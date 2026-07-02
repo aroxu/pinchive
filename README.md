@@ -98,6 +98,9 @@ Full setup (login profile, local install, switch matrix):
   `PINCHIVE_RESYNC_EVERY_HOURS` (default 24; `0` disables) to pull new pins —
   cheap, since the per-board archive only fetches new ones. Toggle **auto-sync**
   per board from its card to opt individual boards out.
+- **Multilingual UI** (English / 한국어). Auto-detects from `Accept-Language`;
+  switch from the nav (choice persists in a cookie). Add a language by extending
+  the catalogs in [app/i18n.py](app/i18n.py) — no gettext toolchain.
 
 Each board keeps its **own** `--download-archive`, so a board stays a faithful
 mirror (a pin shared across boards downloads into each) while re-syncing still

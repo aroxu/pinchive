@@ -7,17 +7,17 @@
       <div class="board-url">{{ board.url }}</div>
     </div>
     {% if board.status == BoardStatus.done %}
-      <span class="badge"><span class="badge-dot dot-emerald"></span>done</span>
+      <span class="badge"><span class="badge-dot dot-emerald"></span>{{ t('status.done') }}</span>
     {% elif board.status == BoardStatus.downloading %}
-      <span class="badge"><span class="badge-dot dot-teal"></span>downloading</span>
+      <span class="badge"><span class="badge-dot dot-teal"></span>{{ t('status.downloading') }}</span>
     {% elif board.status == BoardStatus.queued %}
-      <span class="badge"><span class="badge-dot dot-blue"></span>queued</span>
+      <span class="badge"><span class="badge-dot dot-blue"></span>{{ t('status.queued') }}</span>
     {% elif board.status == BoardStatus.pending %}
-      <span class="badge"><span class="badge-dot dot-muted"></span>waiting</span>
+      <span class="badge"><span class="badge-dot dot-muted"></span>{{ t('status.waiting') }}</span>
     {% elif board.status == BoardStatus.partial %}
-      <span class="badge"><span class="badge-dot dot-rose"></span>partial</span>
+      <span class="badge"><span class="badge-dot dot-rose"></span>{{ t('status.partial') }}</span>
     {% else %}
-      <span class="badge"><span class="badge-dot dot-rose"></span>error</span>
+      <span class="badge"><span class="badge-dot dot-rose"></span>{{ t('status.error') }}</span>
     {% endif %}
   </div>
 
@@ -30,16 +30,16 @@
   <div class="counts">
     <div class="count-item">
       <span class="n">{{ board.downloaded_count }}</span>
-      <span class="k">downloaded</span>
+      <span class="k">{{ t('count.downloaded') }}</span>
     </div>
     <div class="count-item">
       <span class="n">{{ board.skipped_count }}</span>
-      <span class="k">skipped</span>
+      <span class="k">{{ t('count.skipped') }}</span>
     </div>
     {% if board.error_count %}
     <div class="count-item">
       <span class="n" style="color:var(--rose)">{{ board.error_count }}</span>
-      <span class="k">errors</span>
+      <span class="k">{{ t('count.errors') }}</span>
     </div>
     {% endif %}
   </div>
@@ -49,36 +49,36 @@
   {% endif %}
 
   <div class="tag-row">
-    {% for t in board.tags %}
+    {% for tg in board.tags %}
     <span class="tag">
-      <a class="tag" style="border:0;background:none;padding:0" href="/?tag={{ t.name }}">#{{ t.name }}</a>
-      <form method="post" action="/boards/{{ board.id }}/untag/{{ t.id }}" style="display:inline">
+      <a class="tag" style="border:0;background:none;padding:0" href="/?tag={{ tg.name }}">#{{ tg.name }}</a>
+      <form method="post" action="/boards/{{ board.id }}/untag/{{ tg.id }}" style="display:inline">
         <button class="x" type="submit" title="remove">×</button>
       </form>
     </span>
     {% endfor %}
     <form method="post" action="/boards/{{ board.id }}/tag" class="tag-add">
-      <input name="name" placeholder="+ tag" maxlength="30" aria-label="add tag">
+      <input name="name" placeholder="{{ t('tag.add') }}" maxlength="30" aria-label="add tag">
     </form>
   </div>
 
-  <label class="autosync" title="Include this board in the periodic auto-resync">
+  <label class="autosync" title="{{ t('autosync.title') }}">
     <input type="checkbox" {{ 'checked' if board.auto_resync }}
            hx-post="/boards/{{ board.id }}/toggle-resync"
            hx-target="#board-{{ board.id }}" hx-swap="outerHTML">
-    <span>auto-sync {{ 'on' if board.auto_resync else 'off' }}</span>
+    <span>{{ t('autosync.on') if board.auto_resync else t('autosync.off') }}</span>
   </label>
 
   <div class="row row-wrap" style="margin-top:auto">
-    <a class="btn btn-secondary btn-sm" href="/boards/{{ board.id }}">View pins</a>
+    <a class="btn btn-secondary btn-sm" href="/boards/{{ board.id }}">{{ t('btn.view_pins') }}</a>
     {% if not active %}
     <button class="btn btn-ghost btn-sm" hx-post="/boards/{{ board.id }}/redownload"
-            hx-target="#board-{{ board.id }}" hx-swap="outerHTML">Re-sync</button>
+            hx-target="#board-{{ board.id }}" hx-swap="outerHTML">{{ t('btn.resync') }}</button>
     {% endif %}
     <form method="post" action="/boards/{{ board.id }}/delete" class="grow"
           style="display:flex;justify-content:flex-end"
-          onsubmit="return confirm('Remove this board from Pinchive?')">
-      <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+          onsubmit="return confirm('{{ t('confirm.delete_board') }}')">
+      <button class="btn btn-danger btn-sm" type="submit">{{ t('btn.delete') }}</button>
     </form>
   </div>
 </div>

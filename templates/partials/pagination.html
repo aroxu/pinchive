@@ -1,15 +1,15 @@
 {% if pages > 1 %}
 <nav class="pager" aria-label="pagination">
   {% if page > 1 %}
-  <a class="btn btn-secondary btn-sm" href="?{{ base_qs }}page={{ page - 1 }}">← Prev</a>
+  <a class="btn btn-secondary btn-sm" href="?{{ base_qs }}page={{ page - 1 }}">{{ t('pager.prev') }}</a>
   {% else %}
-  <span class="btn btn-secondary btn-sm" aria-disabled="true" style="opacity:.4">← Prev</span>
+  <span class="btn btn-secondary btn-sm" aria-disabled="true" style="opacity:.4">{{ t('pager.prev') }}</span>
   {% endif %}
-  <span class="caption-uc" style="color:var(--muted)">Page {{ page }} / {{ pages }}</span>
+  <span class="caption-uc" style="color:var(--muted)">{{ t('pager.page', p=page, pages=pages) }}</span>
   {% if page < pages %}
-  <a class="btn btn-secondary btn-sm" href="?{{ base_qs }}page={{ page + 1 }}">Next →</a>
+  <a class="btn btn-secondary btn-sm" href="?{{ base_qs }}page={{ page + 1 }}">{{ t('pager.next') }}</a>
   {% else %}
-  <span class="btn btn-secondary btn-sm" aria-disabled="true" style="opacity:.4">Next →</span>
+  <span class="btn btn-secondary btn-sm" aria-disabled="true" style="opacity:.4">{{ t('pager.next') }}</span>
   {% endif %}
 </nav>
 {% endif %}

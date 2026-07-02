@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ko">
+<html lang="{{ get_locale() }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -16,12 +16,18 @@
         <span class="dot"></span> Pinchive
       </a>
       <div class="nav-links">
-        <a class="nav-link" href="/">Boards</a>
-        <a class="nav-link" href="/duplicates">Duplicates</a>
-        <a class="nav-link" href="/credentials">Credentials</a>
+        <a class="nav-link" href="/">{{ t('nav.boards') }}</a>
+        <a class="nav-link" href="/duplicates">{{ t('nav.duplicates') }}</a>
+        <a class="nav-link" href="/credentials">{{ t('nav.credentials') }}</a>
       </div>
       <div class="nav-right">
-        <a class="btn btn-primary btn-sm" href="/#add">Add board</a>
+        <span class="lang-switch">
+          {% for lc in SUPPORTED_LANGS %}
+          <a class="lang-opt {{ 'active' if get_locale() == lc }}" href="?lang={{ lc }}"
+             rel="nofollow">{{ LANG_NAMES[lc] }}</a>
+          {% endfor %}
+        </span>
+        <a class="btn btn-primary btn-sm" href="/#add">{{ t('nav.add_board') }}</a>
       </div>
     </div>
   </nav>
@@ -34,7 +40,7 @@
     <div class="container">
       <div class="wordmark">Pinchive</div>
       <div class="row row-wrap between">
-        <p class="body-sm muted">Self-hosted Pinterest board archiver · inspired by TubeArchivist</p>
+        <p class="body-sm muted">{{ t('footer.tagline') }}</p>
         <p class="body-sm muted-soft">gallery-dl · FastAPI · SQLite</p>
       </div>
     </div>

@@ -13,10 +13,11 @@ from fastapi import Depends, FastAPI, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.datastructures import MutableHeaders
 from sqlalchemy import func, or_
 from sqlmodel import Session, select
 
-from app import auth, dedup
+from app import auth, dedup, i18n
 from app.config import get_settings
 from app.db import get_session, init_db
 from app.models import (
@@ -54,11 +55,47 @@ async def lifespan(app: FastAPI):
         await app.state.arq.close()
 
 
+class LocaleMiddleware:
+    """Pure ASGI middleware (NOT BaseHTTPMiddleware) so the locale ContextVar it
+    sets is visible to the endpoint + template render — BaseHTTPMiddleware runs
+    the endpoint in a separate task and would drop the ContextVar. Persists an
+    explicit `?lang=` choice as a cookie."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        request = Request(scope)
+        loc = i18n.resolve_locale(request)
+        i18n.set_locale(loc)
+        if request.query_params.get("lang") in i18n.SUPPORTED:
+            async def send_wrapper(message):
+                if message["type"] == "http.response.start":
+                    headers = MutableHeaders(raw=message.setdefault("headers", []))
+                    headers.append(
+                        "set-cookie",
+                        f"lang={loc}; Max-Age=31536000; Path=/; SameSite=Lax",
+                    )
+                await send(message)
+
+            await self.app(scope, receive, send_wrapper)
+        else:
+            await self.app(scope, receive, send)
+
+
 app = FastAPI(title="Pinchive", lifespan=lifespan)
+app.add_middleware(LocaleMiddleware)
 
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 templates.env.globals["BoardStatus"] = BoardStatus
 templates.env.globals["CredentialStatus"] = CredentialStatus
+templates.env.globals["t"] = i18n.t
+templates.env.globals["get_locale"] = i18n.get_locale
+templates.env.globals["SUPPORTED_LANGS"] = i18n.SUPPORTED
+templates.env.globals["LANG_NAMES"] = i18n.LANG_NAMES
 
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 # Downloaded media, served read-only from the data volume.
