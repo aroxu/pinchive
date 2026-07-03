@@ -4,7 +4,7 @@ import json
 import sys
 from pathlib import Path
 
-from app import downloader
+from app import dedup, downloader
 
 
 def test_build_command_minimal():
@@ -53,7 +53,7 @@ def test_scan_media_image_with_sidecar_and_hashes(tmp_path, make_image):
     assert m.title == "hello" and m.description == "world"
     assert m.source_url == "https://src/x"
     assert m.content_sha256 and len(m.content_sha256) == 64
-    assert m.phash and len(m.phash) == 16
+    assert m.phash and len(m.phash) == dedup.PHASH_HEX_LEN
     assert m.file_size and m.file_size > 0
 
 

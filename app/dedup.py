@@ -22,12 +22,15 @@ try:
 except ImportError:  # Pillow optional at import time; hashing degrades to sha256
     _HAVE_PIL = False
 
-_HASH_SIZE = 8  # -> 64-bit dHash
-# Near-duplicate threshold (Hamming distance). <= this = "same image".
-# 8/64 sits below the ~32-bit distance of unrelated images (low false-positive)
-# while still catching heavy re-encodes/resizes (a real Pinterest re-encode
-# measured ~4). Tune up toward 10 to catch more, down toward 4 to be stricter.
-NEAR_THRESHOLD = 8
+_HASH_SIZE = 16                       # -> 256-bit dHash (fine, discriminative)
+PHASH_HEX_LEN = _HASH_SIZE * _HASH_SIZE // 4  # 64 hex chars
+
+# We only want to flag the SAME image at a different resolution — not merely
+# "similar-looking". A resized copy has a tiny 256-bit dHash distance (typically
+# 0-8) and the SAME aspect ratio; genuinely different images sit ~128 apart. So:
+# a strict Hamming cap AND a matching aspect ratio are both required.
+NEAR_THRESHOLD = 10                   # out of 256 (~4%)
+ASPECT_TOL = 0.04                     # aspect ratios must match within 4%
 
 
 def sha256_file(path: Path, chunk: int = 1 << 20) -> str:
@@ -90,11 +93,28 @@ def compute(path: Path, *, is_image: bool) -> Hashes:
 
 
 def hamming(a: str, b: str) -> int:
-    """Hamming distance between two equal-length hex phashes."""
+    """Hamming distance between two equal-length hex phashes. Different lengths
+    (e.g. a stale short hash from an older version) are treated as far apart."""
+    if not a or not b or len(a) != len(b):
+        return 1 << 20
     try:
         return bin(int(a, 16) ^ int(b, 16)).count("1")
     except (TypeError, ValueError):
-        return 64
+        return 1 << 20
+
+
+def _aspect(it: dict) -> float | None:
+    w, h = it.get("width"), it.get("height")
+    if not w or not h:
+        return None
+    return w / h
+
+
+def _aspect_match(a: dict, b: dict) -> bool:
+    ra, rb = _aspect(a), _aspect(b)
+    if ra is None or rb is None:
+        return True  # unknown dimensions -> don't block (sha/phash still decide)
+    return abs(ra - rb) <= ASPECT_TOL * max(ra, rb)
 
 
 # --------------------------------------------------------------------------- #
@@ -133,15 +153,17 @@ def group_duplicates(
             else:
                 by_sha[s] = i
 
-    # near phash pairs
-    with_ph = [(i, it["phash"]) for i, it in enumerate(items) if it.get("phash")]
+    # near phash pairs — same image, different resolution: tiny Hamming distance
+    # AND a matching aspect ratio. Both guards keep genuinely different images
+    # (and coarse-hash collisions) out of the same group.
+    with_ph = [(i, items[i]) for i in range(len(items)) if items[i].get("phash")]
     for x in range(len(with_ph)):
-        ix, px = with_ph[x]
+        ix, a = with_ph[x]
         for y in range(x + 1, len(with_ph)):
-            iy, py = with_ph[y]
+            iy, b = with_ph[y]
             if find(ix) == find(iy):
                 continue
-            if hamming(px, py) <= near_threshold:
+            if hamming(a["phash"], b["phash"]) <= near_threshold and _aspect_match(a, b):
                 union(ix, iy)
 
     clusters: dict[int, list[dict]] = {}

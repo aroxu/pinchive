@@ -55,6 +55,7 @@ _ADDED_COLUMNS = {
         "content_sha256": "VARCHAR",
         "phash": "VARCHAR",
         "file_size": "INTEGER",
+        "dup_group": "INTEGER",
     },
     "board": {
         "auto_resync": "BOOLEAN DEFAULT 1",

@@ -76,8 +76,10 @@ def test_dhash_corrupt_returns_none(tmp_path):
 def test_hamming_length_and_bad_input():
     assert dedup.hamming("00", "01") == 1
     assert dedup.hamming("ff", "00") == 8
-    assert dedup.hamming(None, "00") == 64  # tolerates junk
-    assert dedup.hamming("zz", "00") == 64
+    # junk / mismatched lengths -> "far apart" sentinel, never a small distance
+    assert dedup.hamming(None, "00") > 64
+    assert dedup.hamming("zz", "00") > 64
+    assert dedup.hamming("0000", "00") > 64   # different lengths
 
 
 def test_group_exact_only():

@@ -187,6 +187,10 @@ def test_duplicates_detect_and_resolve(client, make_image):
     _mk_pin(b1, "d1/pin.jpg", sha=sha, ph=ph, width=500, height=400)
     p2 = _mk_pin(b2, "d2/pin.jpg", sha=sha, ph=ph, width=500, height=400)
 
+    # duplicates are precomputed + stored now, not computed per page view
+    from app.tasks import _recompute_duplicates_blocking
+    _recompute_duplicates_blocking()
+
     page = client.get("/duplicates").text
     assert "copies" in page  # a group rendered
 

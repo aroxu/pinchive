@@ -39,6 +39,12 @@
           <span class="hint muted">{{ t('settings.zero_disables') }}</span>
         </label>
         <label class="field">
+          <span class="lbl">{{ t('settings.dedup_interval') }}</span>
+          <input class="input" type="number" name="dedup_every_hours" min="0" max="168"
+                 value="{{ eff.dedup_every_hours }}">
+          <span class="hint muted">{{ t('settings.zero_disables') }}</span>
+        </label>
+        <label class="field">
           <span class="lbl">{{ t('settings.timeout') }}</span>
           <input class="input" type="number" name="pin_stall_timeout" min="30" max="7200"
                  value="{{ eff.pin_stall_timeout }}">

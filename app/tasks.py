@@ -259,32 +259,30 @@ async def refresh_all_credentials(ctx: dict) -> dict:
 
 
 # --------------------------------------------------------------------------- #
-# manual duplicate rescan
+# duplicate detection (precomputed + stored, not recomputed per page view)
 # --------------------------------------------------------------------------- #
-async def rescan_hashes(ctx: dict) -> dict:
-    """Compute content_sha256 + phash for image pins that lack them (e.g. pins
-    created by the mid-download light scan), so the Duplicates view catches
-    them. Runs in the worker so a big archive doesn't block the web request."""
+async def recompute_duplicates(ctx: dict) -> dict:
+    """Hash any image pins missing/stale hashes, cluster them, and persist each
+    pin's dup_group (NULL when unique). The Duplicates page just reads the
+    stored groups. Runs in the worker (executor) so a big archive doesn't block."""
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(None, _rescan_hashes_blocking)
+    return await loop.run_in_executor(None, _recompute_duplicates_blocking)
 
 
-def _rescan_hashes_blocking() -> dict:
+def _recompute_duplicates_blocking() -> dict:
     from app import dedup
 
+    # 1) fill in hashes that are missing or from an older (shorter) hash version
     with session_scope() as s:
-        pins = s.exec(
-            select(Pin).where(
-                Pin.media_type == "image", Pin.content_sha256.is_(None)
-            )
-        ).all()
-        ids = [p.id for p in pins]
-    updated = 0
+        ids = [p.id for p in s.exec(select(Pin).where(Pin.media_type == "image")).all()]
+    hashed = 0
     for pid in ids:
         with session_scope() as s:
             p = s.get(Pin, pid)
             if p is None:
                 continue
+            if p.content_sha256 and p.phash and len(p.phash) == dedup.PHASH_HEX_LEN:
+                continue  # already current
             f = settings.boards_dir / p.rel_path
             if not f.exists():
                 continue
@@ -292,9 +290,33 @@ def _rescan_hashes_blocking() -> dict:
             p.content_sha256 = h.sha256
             p.phash = h.phash
             p.file_size = h.size
-            updated += 1
-    logger.info("↻ duplicate rescan: hashed %s pin(s)", updated)
-    return {"hashed": updated}
+            hashed += 1
+
+    # 2) cluster and 3) write dup_group (group id = min pin id in the cluster)
+    with session_scope() as s:
+        rows = s.exec(select(Pin).where(Pin.media_type == "image")).all()
+        items = [
+            {"id": p.id, "content_sha256": p.content_sha256, "phash": p.phash,
+             "width": p.width, "height": p.height}
+            for p in rows
+        ]
+        groups = dedup.group_duplicates(items)
+        dup_of: dict[int, int] = {}
+        for g in groups:
+            gid = min(it["id"] for it in g)
+            for it in g:
+                dup_of[it["id"]] = gid
+        changed = 0
+        for p in rows:
+            new = dup_of.get(p.id)
+            if p.dup_group != new:
+                p.dup_group = new
+                changed += 1
+    logger.info(
+        "↻ dedup: hashed %s, %s group(s), %s pin(s) updated",
+        hashed, len(groups), changed,
+    )
+    return {"hashed": hashed, "groups": len(groups)}
 
 
 # --------------------------------------------------------------------------- #
@@ -420,15 +442,28 @@ async def _cron_resync(ctx: dict) -> dict:
     return await resync_all_boards(ctx)
 
 
+async def _cron_dedup(ctx: dict) -> dict:
+    interval = appsettings.get("dedup_every_hours")
+    if not interval or interval <= 0:
+        return {"skipped": "disabled"}
+    if not appsettings.due("_last_dedup_at", interval):
+        return {"skipped": "not due"}
+    appsettings.set_raw("_last_dedup_at", _now().isoformat())
+    return await recompute_duplicates(ctx)
+
+
 def _build_cron_jobs() -> list:
     return [
         cron(_cron_refresh, minute=0),   # hourly; gated by refresh interval
         cron(_cron_resync, minute=30),   # hourly; gated by resync interval
+        cron(_cron_dedup, minute=45),    # hourly; gated by dedup interval
     ]
 
 
 class WorkerSettings:
-    functions = [download_board, refresh_credential, rescan_hashes, resync_all_boards]
+    functions = [
+        download_board, refresh_credential, recompute_duplicates, resync_all_boards,
+    ]
     cron_jobs = _build_cron_jobs()
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
     max_jobs = settings.max_concurrency

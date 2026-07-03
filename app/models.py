@@ -166,6 +166,10 @@ class Pin(SQLModel, table=True):
     content_sha256: Optional[str] = Field(default=None, index=True)
     phash: Optional[str] = Field(default=None, index=True)
     file_size: Optional[int] = Field(default=None)
+    # Precomputed duplicate cluster id (shared by all copies of one image);
+    # NULL = not a duplicate. Written by the periodic dedup job, read by the
+    # Duplicates page. See app.tasks.recompute_duplicates.
+    dup_group: Optional[int] = Field(default=None, index=True)
 
     created_at: datetime = Field(default_factory=utcnow)
 

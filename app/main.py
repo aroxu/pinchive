@@ -17,7 +17,7 @@ from starlette.datastructures import MutableHeaders
 from sqlalchemy import func, or_
 from sqlmodel import Session, select
 
-from app import appsettings, auth, dedup, i18n
+from app import appsettings, auth, i18n
 from app.config import get_settings
 from app.db import get_session, init_db
 from app.models import (
@@ -652,30 +652,26 @@ async def bulk_tag_pins(
 
 
 # --------------------------------------------------------------------------- #
-# duplicates
+# duplicates  (read precomputed groups; see tasks.recompute_duplicates)
 # --------------------------------------------------------------------------- #
-def _image_pin_rows(session: Session) -> list[dict]:
-    rows = session.exec(
-        select(Pin).where(Pin.media_type == "image")
-    ).all()
-    return [
-        {
-            "id": p.id,
-            "content_sha256": p.content_sha256,
-            "phash": p.phash,
-            "pin": p,
-        }
-        for p in rows
-    ]
-
-
 def _duplicate_pin_ids(session: Session) -> set[int]:
-    groups = dedup.group_duplicates(_image_pin_rows(session))
-    ids: set[int] = set()
+    rows = session.exec(select(Pin.id).where(Pin.dup_group.is_not(None))).all()
+    return set(rows)
+
+
+def _stored_dup_groups(session: Session) -> list[list[Pin]]:
+    """Group image pins by their precomputed dup_group, highest-res copy first."""
+    rows = session.exec(
+        select(Pin).where(Pin.dup_group.is_not(None)).order_by(Pin.dup_group)
+    ).all()
+    by_group: dict[int, list[Pin]] = {}
+    for p in rows:
+        by_group.setdefault(p.dup_group, []).append(p)
+    groups = [g for g in by_group.values() if len(g) >= 2]
     for g in groups:
-        for it in g:
-            ids.add(it["id"])
-    return ids
+        g.sort(key=lambda p: (p.width or 0) * (p.height or 0), reverse=True)
+    groups.sort(key=len, reverse=True)
+    return groups
 
 
 @app.get("/duplicates", response_class=HTMLResponse)
@@ -685,14 +681,7 @@ def duplicates_page(
     rescanned: str = Query(default=""),
     session: Session = Depends(get_session),
 ):
-    rows = _image_pin_rows(session)
-    raw_groups = dedup.group_duplicates(rows)
-    # Build view groups: keep the largest-resolution pin as the "keep" suggestion.
-    groups = []
-    for g in raw_groups:
-        pins = [it["pin"] for it in g]
-        pins.sort(key=lambda p: (p.width or 0) * (p.height or 0), reverse=True)
-        groups.append(pins)
+    groups = _stored_dup_groups(session)
     total_extra = sum(len(g) - 1 for g in groups)
     page_groups, page, pages, total = _paginate_list(
         groups, page, appsettings.get("per_page_dupes")
@@ -735,11 +724,11 @@ async def resolve_duplicates(
 
 @app.post("/duplicates/rescan")
 async def rescan_duplicates(request: Request):
-    """Manually (re)hash pins missing a hash so the dedup view catches them."""
+    """Manually trigger the (re)hash + regroup pass; results are stored in DB."""
     pool: ArqRedis | None = request.app.state.arq
     if pool is not None:
         try:
-            await pool.enqueue_job("rescan_hashes")
+            await pool.enqueue_job("recompute_duplicates")
         except Exception:  # noqa: BLE001
             pass
     return RedirectResponse("/duplicates?rescanned=1", status_code=303)

@@ -121,26 +121,37 @@ def test_resume_interrupted_reenqueues_stuck_boards():
     assert {args[0] for _, args in pool.jobs} == {d, q, p}
 
 
-def test_rescan_hashes_fills_missing(make_image):
-    from app.tasks import _rescan_hashes_blocking
+def test_recompute_duplicates_hashes_and_groups(make_image):
+    from app.tasks import _recompute_duplicates_blocking
     s = get_settings()
+    img = make_image(size=(500, 400))
+    # two boards, each a physical copy of the same image -> should form a group
+    ids = []
+    for slug in ("da", "db"):
+        with session_scope() as sess:
+            b = Board(url="https://x/u/b/", slug=slug, status=BoardStatus.done)
+            sess.add(b)
+            sess.flush()
+            bid = b.id
+        folder = board_folder(slug, bid)
+        dest = s.boards_dir / folder
+        dest.mkdir(parents=True, exist_ok=True)
+        shutil.copy(img, dest / "pin.jpg")
+        with session_scope() as sess:
+            p = Pin(board_id=bid, rel_path=f"{folder}/pin.jpg", filename="pin.jpg",
+                    media_type="image")  # no hash yet
+            sess.add(p)
+            sess.flush()
+            ids.append(p.id)
+
+    res = _recompute_duplicates_blocking()
+    assert res["hashed"] == 2 and res["groups"] == 1
     with session_scope() as sess:
-        b = Board(url="https://x/u/b/", slug="s", status=BoardStatus.done)
-        sess.add(b)
-        sess.flush()
-        bid = b.id
-    folder = board_folder("s", bid)
-    dest = s.boards_dir / folder
-    dest.mkdir(parents=True, exist_ok=True)
-    shutil.copy(make_image(), dest / "a.jpg")
-    with session_scope() as sess:
-        sess.add(Pin(board_id=bid, rel_path=f"{folder}/a.jpg", filename="a.jpg",
-                     media_type="image"))  # no hash yet
-    res = _rescan_hashes_blocking()
-    assert res["hashed"] == 1
-    with session_scope() as sess:
-        pin = sess.exec(select(Pin).where(Pin.board_id == bid)).first()
-        assert pin.content_sha256 is not None and pin.phash is not None
+        pins = [sess.get(Pin, pid) for pid in ids]
+        assert all(p.content_sha256 and p.phash for p in pins)
+        # both share one non-null dup_group
+        assert pins[0].dup_group is not None
+        assert pins[0].dup_group == pins[1].dup_group
 
 
 def test_sync_partial_pins_creates_rows_incrementally(make_image):

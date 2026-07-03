@@ -29,6 +29,7 @@ def _as_bool(v) -> bool:
 EDITABLE: dict[str, tuple] = {
     "resync_every_hours": (int, 0, 168),
     "refresh_every_hours": (int, 0, 168),
+    "dedup_every_hours": (int, 0, 168),
     "pin_stall_timeout": (int, 30, 7200),
     "dl_sleep": (float, 0.0, 30.0),
     "per_page_boards": (int, 1, 200),
