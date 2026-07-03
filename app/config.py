@@ -23,6 +23,12 @@ class Settings(BaseSettings):
     max_concurrency: int = Field(default=2, ge=1, le=16)
     dl_sleep: float = Field(default=0.8, ge=0.0)
 
+    # No overall board timeout (a big board can take as long as it needs).
+    # Instead, guard each individual file: if a single pin download stalls with
+    # no data for this many seconds, gallery-dl aborts just that file and moves
+    # on to the next pin. Default 600s (10 min).
+    pin_stall_timeout: int = Field(default=600, ge=30)
+
     # Credential keep-alive cron. The job re-hits Pinterest and persists the
     # rotated session cookie so a registered credential stays alive on its own.
     # refresh_every_hours > 0 runs every N hours (e.g. 6 -> 00,06,12,18);

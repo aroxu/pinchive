@@ -23,11 +23,13 @@ def test_build_command_full():
     cmd = downloader.build_command(
         "https://p/", Path("/dest"),
         cookies_file=Path("/c.txt"), archive_file=Path("/a.db"), sleep=0.8,
+        stall_timeout=600,
     )
     j = " ".join(cmd)
     assert "--cookies" in cmd and "--download-archive" in cmd
     assert "extractor.pinterest.sleep-request=0.8" in j
     assert "extractor.pinterest.videos=true" in j
+    assert "downloader.http.timeout=600" in j  # per-pin stall guard
 
 
 def test_scan_media_image_with_sidecar_and_hashes(tmp_path, make_image):

@@ -88,6 +88,45 @@ def test_resync_no_queue():
     assert res["enqueued"] == 0
 
 
+def test_no_board_timeout():
+    # board-level timeout effectively removed; stalls handled per-pin instead
+    from app.tasks import WorkerSettings
+    assert WorkerSettings.job_timeout >= 24 * 3600
+
+
+def test_resume_interrupted_reenqueues_stuck_boards():
+    from app.tasks import _resume_interrupted
+    d = _mk(BoardStatus.downloading, True)
+    q = _mk(BoardStatus.queued, True)
+    p = _mk(BoardStatus.pending, True)
+    _mk(BoardStatus.done, True)   # settled -> not resumed
+    pool = _FakePool()
+    asyncio.run(_resume_interrupted({"redis": pool}))
+    assert {args[0] for _, args in pool.jobs} == {d, q, p}
+
+
+def test_rescan_hashes_fills_missing(make_image):
+    from app.tasks import _rescan_hashes_blocking
+    s = get_settings()
+    with session_scope() as sess:
+        b = Board(url="https://x/u/b/", slug="s", status=BoardStatus.done)
+        sess.add(b)
+        sess.flush()
+        bid = b.id
+    folder = board_folder("s", bid)
+    dest = s.boards_dir / folder
+    dest.mkdir(parents=True, exist_ok=True)
+    shutil.copy(make_image(), dest / "a.jpg")
+    with session_scope() as sess:
+        sess.add(Pin(board_id=bid, rel_path=f"{folder}/a.jpg", filename="a.jpg",
+                     media_type="image"))  # no hash yet
+    res = _rescan_hashes_blocking()
+    assert res["hashed"] == 1
+    with session_scope() as sess:
+        pin = sess.exec(select(Pin).where(Pin.board_id == bid)).first()
+        assert pin.content_sha256 is not None and pin.phash is not None
+
+
 def test_sync_partial_pins_creates_rows_incrementally(make_image):
     s = get_settings()
     with session_scope() as sess:

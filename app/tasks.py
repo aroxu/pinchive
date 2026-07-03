@@ -112,6 +112,7 @@ async def download_board(ctx: dict, board_id: int) -> dict:
             cookies_file=cookies_file,
             archive_file=archive_file,
             sleep=settings.dl_sleep,
+            stall_timeout=settings.pin_stall_timeout,
             on_progress=on_progress,
         ),
     )
@@ -258,6 +259,45 @@ async def refresh_all_credentials(ctx: dict) -> dict:
 
 
 # --------------------------------------------------------------------------- #
+# manual duplicate rescan
+# --------------------------------------------------------------------------- #
+async def rescan_hashes(ctx: dict) -> dict:
+    """Compute content_sha256 + phash for image pins that lack them (e.g. pins
+    created by the mid-download light scan), so the Duplicates view catches
+    them. Runs in the worker so a big archive doesn't block the web request."""
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, _rescan_hashes_blocking)
+
+
+def _rescan_hashes_blocking() -> dict:
+    from app import dedup
+
+    with session_scope() as s:
+        pins = s.exec(
+            select(Pin).where(
+                Pin.media_type == "image", Pin.content_sha256.is_(None)
+            )
+        ).all()
+        ids = [p.id for p in pins]
+    updated = 0
+    for pid in ids:
+        with session_scope() as s:
+            p = s.get(Pin, pid)
+            if p is None:
+                continue
+            f = settings.boards_dir / p.rel_path
+            if not f.exists():
+                continue
+            h = dedup.compute(f, is_image=True)
+            p.content_sha256 = h.sha256
+            p.phash = h.phash
+            p.file_size = h.size
+            updated += 1
+    logger.info("↻ duplicate rescan: hashed %s pin(s)", updated)
+    return {"hashed": updated}
+
+
+# --------------------------------------------------------------------------- #
 # board auto-resync
 # --------------------------------------------------------------------------- #
 _RESYNCABLE = (BoardStatus.done, BoardStatus.partial, BoardStatus.error)
@@ -324,10 +364,37 @@ def configure_download_logging() -> None:
     lg.propagate = False
 
 
+_INTERRUPTED = (BoardStatus.downloading, BoardStatus.queued, BoardStatus.pending)
+
+
+async def _resume_interrupted(ctx: dict) -> None:
+    """Re-enqueue boards left mid-flight by a worker restart/crash. The per-board
+    archive makes this a resume: already-downloaded pins are skipped, the rest
+    continue."""
+    pool = ctx.get("redis")
+    if pool is None:
+        return
+    with session_scope() as s:
+        ids = [
+            b.id for b in s.exec(select(Board).where(Board.status.in_(_INTERRUPTED))).all()
+            if b.id is not None
+        ]
+    for bid in ids:
+        with session_scope() as s:
+            b = s.get(Board, bid)
+            if b is not None:
+                b.status = BoardStatus.queued
+                b.updated_at = _now()
+        await pool.enqueue_job("download_board", bid)
+    if ids:
+        logger.info("↻ resuming %s interrupted board(s): %s", len(ids), ids)
+
+
 async def _startup(ctx: dict) -> None:
     settings.ensure_dirs()
     init_db()
     configure_download_logging()
+    await _resume_interrupted(ctx)
 
 
 def _build_cron_jobs() -> list:
@@ -351,9 +418,13 @@ def _build_cron_jobs() -> list:
 
 
 class WorkerSettings:
-    functions = [download_board, refresh_credential]
+    functions = [download_board, refresh_credential, rescan_hashes, resync_all_boards]
     cron_jobs = _build_cron_jobs()
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
     max_jobs = settings.max_concurrency
     on_startup = _startup
     keep_result = 3600
+    # No board-level timeout — a big board takes as long as it needs. Stalls are
+    # handled per-pin via downloader.http.timeout (settings.pin_stall_timeout).
+    # (arq requires an int; a week is effectively unlimited.)
+    job_timeout = 7 * 24 * 3600

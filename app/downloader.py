@@ -83,6 +83,7 @@ def build_command(
     cookies_file: Path | None,
     archive_file: Path | None,
     sleep: float,
+    stall_timeout: float = 600.0,
 ) -> list[str]:
     # Invoke via the current interpreter so we don't depend on gallery-dl being
     # on PATH (venv on Windows, /usr/local/bin in the container).
@@ -92,6 +93,9 @@ def build_command(
         "--write-metadata",                # sidecar .json per file (archival)
         "--retries", "3",
         "-o", "extractor.pinterest.videos=true",
+        # If a single file stalls (no data) this long, abort just that file and
+        # move on to the next pin — no overall board timeout.
+        "-o", f"downloader.http.timeout={stall_timeout}",
     ]
     if sleep > 0:
         cmd += ["-o", f"extractor.pinterest.sleep-request={sleep}"]
@@ -111,13 +115,15 @@ def run_download(
     cookies_file: Path | None = None,
     archive_file: Path | None = None,
     sleep: float = 0.8,
+    stall_timeout: float = 600.0,
     on_progress: Callable[[Progress], None] | None = None,
     progress_every: int = 5,
     log_maxlen: int = 60,
 ) -> DownloadResult:
     dest.mkdir(parents=True, exist_ok=True)
     cmd = build_command(
-        url, dest, cookies_file=cookies_file, archive_file=archive_file, sleep=sleep
+        url, dest, cookies_file=cookies_file, archive_file=archive_file,
+        sleep=sleep, stall_timeout=stall_timeout,
     )
 
     prog = Progress()
