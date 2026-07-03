@@ -1,0 +1,31 @@
+{# Live dedup progress. Polls itself every 1.5s while a scan runs; when the run
+   finishes it stops polling and reloads the page once (so fresh groups show).
+   Rendered by /duplicates/status; the Duplicates page loads it on page load. #}
+{% set running = st.get('running') %}
+{% set phase = st.get('phase') %}
+<div id="dedup-status" data-running="{{ '1' if running else '0' }}"
+     style="margin-top:var(--s-md)"
+     {% if running %}hx-get="/duplicates/status" hx-trigger="every 1500ms"
+     hx-target="#dedup-status" hx-swap="outerHTML"{% endif %}>
+  {% if phase == 'queued' %}
+    <p class="body-sm" style="color:var(--primary)">{{ t('dup.status_queued') }}</p>
+  {% elif phase == 'hashing' %}
+    <p class="body-sm" style="color:var(--primary)">{{ t('dup.status_hashing', cur=st.get('cur', 0), total=st.get('total', 0)) }}</p>
+  {% elif phase == 'grouping' %}
+    <p class="body-sm" style="color:var(--primary)">{{ t('dup.status_grouping') }}</p>
+  {% elif phase == 'done' %}
+    <p class="body-sm muted">{{ t('dup.status_done', groups=st.get('groups', 0), removable=st.get('removable', 0)) }}</p>
+  {% endif %}
+  <script>
+    (function () {
+      var el = document.getElementById('dedup-status');
+      if (!el) return;
+      if (el.dataset.running === '1') {
+        window.__dedupWasRunning = true;
+      } else if (window.__dedupWasRunning) {
+        window.__dedupWasRunning = false;
+        location.reload();
+      }
+    })();
+  </script>
+</div>

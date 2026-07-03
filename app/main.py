@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from contextlib import asynccontextmanager
 from math import ceil
 from pathlib import Path
@@ -728,10 +729,48 @@ async def rescan_duplicates(request: Request):
     pool: ArqRedis | None = request.app.state.arq
     if pool is not None:
         try:
+            # Optimistically mark "queued" so the page shows live status the moment
+            # it reloads, before the worker actually picks the job up.
+            appsettings.set_raw(
+                "_dedup_status", json.dumps({"running": True, "phase": "queued"})
+            )
             await pool.enqueue_job("recompute_duplicates")
         except Exception:  # noqa: BLE001
             pass
-    return RedirectResponse("/duplicates?rescanned=1", status_code=303)
+    return RedirectResponse("/duplicates", status_code=303)
+
+
+@app.get("/duplicates/status", response_class=HTMLResponse)
+def duplicates_status(request: Request):
+    """HTMX poll target: current dedup progress (see tasks.set_dedup_status)."""
+    raw = appsettings.get_raw("_dedup_status")
+    st: dict = {}
+    if raw:
+        try:
+            st = json.loads(raw)
+        except ValueError:
+            st = {}
+    return templates.TemplateResponse(
+        request, "partials/dedup_status.html", {"st": st}
+    )
+
+
+@app.post("/duplicates/resolve-all")
+async def resolve_all_duplicates(
+    request: Request, session: Session = Depends(get_session)
+):
+    """Keep the highest-resolution copy in every group; delete all the rest."""
+    affected: set[int] = set()
+    for group in _stored_dup_groups(session):
+        for pin in group[1:]:  # group[0] is the highest-res keeper
+            affected.add(pin.board_id)
+            _delete_pin_files(pin)
+            session.delete(pin)
+    session.commit()
+    for bid in affected:
+        _reconcile_board_counts(session, bid)
+    session.commit()
+    return RedirectResponse("/duplicates", status_code=303)
 
 
 @app.get("/healthz")

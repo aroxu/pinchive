@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import json
 import logging
 import os
 import re
@@ -280,6 +281,14 @@ def _hash_image_path(args: tuple) -> tuple:
     return pid, h.sha256, h.phash, h.size
 
 
+def set_dedup_status(**st) -> None:
+    """Persist a small JSON progress blob the Duplicates page polls (live status)."""
+    try:
+        appsettings.set_raw("_dedup_status", json.dumps(st))
+    except Exception:  # noqa: BLE001 — status is best-effort, never fail the job
+        pass
+
+
 def _recompute_duplicates_blocking() -> dict:
     from concurrent.futures import ProcessPoolExecutor
 
@@ -298,9 +307,21 @@ def _recompute_duplicates_blocking() -> dict:
 
     hashed = 0
     if todo:
+        set_dedup_status(running=True, phase="hashing", cur=0, total=len(todo))
         workers = min(len(todo), (os.cpu_count() or 2))
+        results = []
+        done = 0
+        last = 0.0
         with ProcessPoolExecutor(max_workers=workers) as ex:
-            results = list(ex.map(_hash_image_path, todo, chunksize=16))
+            for r in ex.map(_hash_image_path, todo, chunksize=16):
+                results.append(r)
+                done += 1
+                now = time.monotonic()
+                if now - last >= 0.3:
+                    last = now
+                    set_dedup_status(
+                        running=True, phase="hashing", cur=done, total=len(todo)
+                    )
         with session_scope() as s:
             for pid, sha, ph, size in results:
                 p = s.get(Pin, pid)
@@ -312,6 +333,7 @@ def _recompute_duplicates_blocking() -> dict:
                 hashed += 1
 
     # 2) cluster and 3) write dup_group (group id = min pin id in the cluster)
+    set_dedup_status(running=True, phase="grouping")
     with session_scope() as s:
         rows = s.exec(select(Pin).where(Pin.media_type == "image")).all()
         items = [
@@ -331,6 +353,11 @@ def _recompute_duplicates_blocking() -> dict:
             if p.dup_group != new:
                 p.dup_group = new
                 changed += 1
+    removable = len(dup_of) - len(groups)  # extra copies beyond one-per-group
+    set_dedup_status(
+        running=False, phase="done", groups=len(groups),
+        removable=removable, at=_now().isoformat(),
+    )
     logger.info(
         "↻ dedup: hashed %s, %s group(s), %s pin(s) updated",
         hashed, len(groups), changed,
