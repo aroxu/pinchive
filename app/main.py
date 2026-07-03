@@ -295,12 +295,41 @@ def board_detail(
     )
 
 
-@app.get("/credentials", response_class=HTMLResponse)
-def credentials_page(request: Request, session: Session = Depends(get_session)):
+@app.get("/credentials")
+def credentials_page(request: Request):
+    # Credentials live under the consolidated Settings page now.
+    return RedirectResponse("/settings", status_code=307)
+
+
+@app.get("/settings", response_class=HTMLResponse)
+def settings_page(
+    request: Request,
+    synced: str = Query(default=""),
+    session: Session = Depends(get_session),
+):
     creds = session.exec(select(Credential).order_by(Credential.name)).all()
     return templates.TemplateResponse(
-        request, "credentials.html", {"credentials": creds}
+        request,
+        "settings.html",
+        {
+            "credentials": creds,
+            "cfg": settings,
+            "queue_up": request.app.state.arq is not None,
+            "synced": synced == "1",
+        },
     )
+
+
+@app.post("/settings/sync-all")
+async def settings_sync_all(request: Request):
+    """Manually enqueue an auto-resync of all opted-in boards."""
+    pool: ArqRedis | None = request.app.state.arq
+    if pool is not None:
+        try:
+            await pool.enqueue_job("resync_all_boards")
+        except Exception:  # noqa: BLE001
+            pass
+    return RedirectResponse("/settings?synced=1", status_code=303)
 
 
 # --------------------------------------------------------------------------- #
@@ -440,7 +469,7 @@ async def add_credential(
     cred.last_error = None if res.active else res.message
     session.add(cred)
     session.commit()
-    return RedirectResponse("/credentials", status_code=303)
+    return RedirectResponse("/settings", status_code=303)
 
 
 @app.post("/credentials/{cred_id}/validate", response_class=HTMLResponse)
@@ -475,7 +504,7 @@ async def delete_credential(cred_id: int, session: Session = Depends(get_session
         p.unlink(missing_ok=True)
     session.delete(cred)
     session.commit()
-    return RedirectResponse("/credentials", status_code=303)
+    return RedirectResponse("/settings", status_code=303)
 
 
 # --------------------------------------------------------------------------- #
@@ -641,6 +670,7 @@ def _duplicate_pin_ids(session: Session) -> set[int]:
 def duplicates_page(
     request: Request,
     page: int = Query(default=1),
+    rescanned: str = Query(default=""),
     session: Session = Depends(get_session),
 ):
     rows = _image_pin_rows(session)
@@ -665,6 +695,7 @@ def duplicates_page(
             "page": page,
             "pages": pages,
             "base_qs": "",
+            "rescanned": rescanned == "1",
         },
     )
 
@@ -688,6 +719,18 @@ async def resolve_duplicates(
         _reconcile_board_counts(session, bid)
     session.commit()
     return RedirectResponse("/duplicates", status_code=303)
+
+
+@app.post("/duplicates/rescan")
+async def rescan_duplicates(request: Request):
+    """Manually (re)hash pins missing a hash so the dedup view catches them."""
+    pool: ArqRedis | None = request.app.state.arq
+    if pool is not None:
+        try:
+            await pool.enqueue_job("rescan_hashes")
+        except Exception:  # noqa: BLE001
+            pass
+    return RedirectResponse("/duplicates?rescanned=1", status_code=303)
 
 
 @app.get("/healthz")

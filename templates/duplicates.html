@@ -13,11 +13,19 @@
           <span class="tag" style="border-color:var(--primary)">{{ t('dup.keep')|upper }}</span>{{ t('dup.subtitle_2') }}
         </p>
       </div>
-      <div class="count-item">
-        <span class="stat-sm">{{ total_extra }}</span>
-        <span class="k muted caption-uc">{{ t('dup.removable') }}</span>
+      <div class="row" style="gap:var(--s-lg)">
+        <div class="count-item">
+          <span class="stat-sm">{{ total_extra }}</span>
+          <span class="k muted caption-uc">{{ t('dup.removable') }}</span>
+        </div>
+        <form method="post" action="/duplicates/rescan">
+          <button class="btn btn-secondary btn-sm" type="submit">{{ t('dup.rescan') }}</button>
+        </form>
       </div>
     </div>
+    {% if rescanned %}
+    <p class="body-sm" style="color:var(--primary);margin-top:var(--s-md)">{{ t('dup.rescan_started') }}</p>
+    {% endif %}
   </div>
 </section>
 

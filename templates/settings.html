@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}{{ t('settings.title') }} — Pinchive{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="container">
+    <span class="badge-teal badge">{{ t('settings.title') }}</span>
+    <h1 class="display-lg" style="margin-top:var(--s-sm)">{{ t('settings.title') }}</h1>
+  </div>
+</section>
+
+<section class="section" style="padding-top:0">
+  <div class="container">
+    <div class="row between row-wrap" style="margin-bottom:var(--s-lg)">
+      <h2 class="display-sm">{{ t('settings.automation') }}</h2>
+      <form method="post" action="/settings/sync-all">
+        <button class="btn btn-primary btn-sm" type="submit">{{ t('settings.sync_all') }}</button>
+      </form>
+    </div>
+    {% if synced %}
+    <p class="body-sm" style="color:var(--primary);margin-bottom:var(--s-md)">{{ t('settings.synced') }}</p>
+    {% endif %}
+
+    <div class="card">
+      <table class="cred">
+        <tbody>
+          <tr><td>{{ t('settings.resync_interval') }}</td><td class="body-strong">
+            {% if cfg.resync_every_hours %}{{ t('settings.every_hours', n=cfg.resync_every_hours) }}{% else %}{{ t('settings.disabled') }}{% endif %}
+          </td></tr>
+          <tr><td>{{ t('settings.refresh_interval') }}</td><td class="body-strong">
+            {% if cfg.refresh_every_hours %}{{ t('settings.every_hours', n=cfg.refresh_every_hours) }}{% else %}{{ t('settings.disabled') }}{% endif %}
+          </td></tr>
+          <tr><td>{{ t('settings.concurrency') }}</td><td class="body-strong">{{ cfg.max_concurrency }}</td></tr>
+          <tr><td>{{ t('settings.timeout') }}</td><td class="body-strong">{{ t('settings.seconds_unit', n=cfg.pin_stall_timeout) }}</td></tr>
+          <tr><td>{{ t('settings.page_sizes') }}</td><td class="body-strong">{{ cfg.per_page_boards }} / {{ cfg.per_page_pins }} / {{ cfg.per_page_dupes }}</td></tr>
+          <tr><td>{{ t('settings.playwright') }}</td><td class="body-strong">
+            {% if cfg.use_playwright_fallback %}{{ t('settings.enabled') }}{% else %}{{ t('settings.disabled') }}{% endif %}
+          </td></tr>
+          <tr><td>{{ t('settings.queue') }}</td><td>
+            <span class="badge"><span class="badge-dot {{ 'dot-emerald' if queue_up else 'dot-rose' }}"></span>{{ t('settings.on') if queue_up else t('settings.off') }}</span>
+          </td></tr>
+        </tbody>
+      </table>
+      <p class="body-sm muted" style="margin-top:var(--s-md)">{{ t('settings.env_note') }}</p>
+    </div>
+  </div>
+</section>
+
+<hr class="hr">
+
+<section class="section">
+  <div class="container">
+    <div class="hero-split">
+      <div class="stack">
+        <span class="badge-teal badge">{{ t('creds.badge') }}</span>
+        <h2 class="display-md">{{ t('creds.title') }}</h2>
+        <p class="title-md muted" style="max-width:48ch">{{ t('creds.subtitle') }}</p>
+        <div class="code-window" style="margin-top:var(--s-md)">
+          <div class="chrome"><span class="lamp"></span><span class="lamp"></span><span class="lamp"></span>
+            <span class="caption muted" style="margin-left:auto">{{ t('creds.how_export') }}</span></div>
+          <pre><span class="tok-com">{{ t('creds.export_1') }}</span>
+<span class="tok-com">{{ t('creds.export_2') }}</span>
+<span class="tok-com">{{ t('creds.export_3') }}</span>
+<span class="tok-com">{{ t('creds.export_4') }}</span>
+
+<span class="tok-key">{{ t('creds.export_req') }}</span>: <span class="tok-str">_pinterest_sess</span></pre>
+          <div class="statusbar">{{ t('creds.accepted') }}</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <form method="post" action="/credentials" class="stack">
+          <label class="field">
+            <span class="lbl">{{ t('form.name') }}</span>
+            <input class="input" name="name" required placeholder="my-account">
+          </label>
+          <label class="field">
+            <span class="lbl">{{ t('form.account') }}</span>
+            <input class="input" name="account" placeholder="pinterest username">
+          </label>
+          <label class="field">
+            <span class="lbl">{{ t('form.cookies') }}</span>
+            <textarea class="textarea" name="cookies" required
+              placeholder="# Netscape HTTP Cookie File&#10;.pinterest.com   TRUE   /   TRUE   0   _pinterest_sess   ...&#10;&#10;— or —&#10;[{&quot;name&quot;:&quot;_pinterest_sess&quot;,&quot;value&quot;:&quot;...&quot;}]"></textarea>
+          </label>
+          <button class="btn btn-primary" type="submit">{{ t('btn.save_validate') }}</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="row between" style="margin:var(--s-xl) 0 var(--s-lg)">
+      <h3 class="title-lg">{{ t('creds.stored') }}</h3>
+      <span class="caption-uc">{{ t('creds.count', n=credentials|length) }}</span>
+    </div>
+    {% if not credentials %}
+      <div class="card"><p class="muted">{{ t('creds.empty') }}</p></div>
+    {% else %}
+      <div class="card card-pad-lg" style="padding:0">
+        <table class="cred">
+          <thead>
+            <tr><th>{{ t('th.name') }}</th><th>{{ t('th.status') }}</th><th>{{ t('th.last_checked') }}</th><th>{{ t('th.note') }}</th><th></th></tr>
+          </thead>
+          <tbody>
+            {% for cred in credentials %}
+              {% include "partials/credential_row.html" %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

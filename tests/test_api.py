@@ -59,6 +59,25 @@ def test_healthz_queue_disabled(client):
     assert j["status"] == "ok" and j["queue"] is False
 
 
+def test_settings_page_ok(client):
+    r = client.get("/settings")
+    assert r.status_code == 200
+    assert "Automation" in r.text  # config overview rendered
+
+
+def test_credentials_redirects_to_settings(client):
+    r = client.get("/credentials", follow_redirects=False)
+    assert r.status_code == 307
+    assert r.headers["location"] == "/settings"
+
+
+def test_sync_all_and_rescan_redirect(client):
+    assert client.post("/settings/sync-all",
+                       follow_redirects=False).status_code == 303
+    assert client.post("/duplicates/rescan",
+                       follow_redirects=False).status_code == 303
+
+
 def test_add_board_without_queue_becomes_pending(client):
     r = client.post("/boards", data={"url": "https://www.pinterest.com/u/b/",
                                      "credential_id": ""})
