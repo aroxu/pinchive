@@ -5,10 +5,12 @@ from __future__ import annotations
 import asyncio
 import functools
 import logging
+import os
 import re
 import sys
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 from urllib.parse import urlparse
 
 from arq import cron
@@ -269,28 +271,45 @@ async def recompute_duplicates(ctx: dict) -> dict:
     return await loop.run_in_executor(None, _recompute_duplicates_blocking)
 
 
-def _recompute_duplicates_blocking() -> dict:
+def _hash_image_path(args: tuple) -> tuple:
+    """Picklable worker for the process pool: (pin_id, abs_path) -> hashes."""
     from app import dedup
 
-    # 1) fill in hashes that are missing or from an older (shorter) hash version
+    pid, abs_path = args
+    h = dedup.compute(Path(abs_path), is_image=True)
+    return pid, h.sha256, h.phash, h.size
+
+
+def _recompute_duplicates_blocking() -> dict:
+    from concurrent.futures import ProcessPoolExecutor
+
+    from app import dedup
+
+    # 1) figure out which pins need (re)hashing, then hash the files in parallel
+    #    across all cores (image decode + hashing is CPU-bound and independent).
+    todo: list[tuple] = []
     with session_scope() as s:
-        ids = [p.id for p in s.exec(select(Pin).where(Pin.media_type == "image")).all()]
-    hashed = 0
-    for pid in ids:
-        with session_scope() as s:
-            p = s.get(Pin, pid)
-            if p is None:
-                continue
+        for p in s.exec(select(Pin).where(Pin.media_type == "image")).all():
             if p.content_sha256 and p.phash and len(p.phash) == dedup.PHASH_HEX_LEN:
                 continue  # already current
             f = settings.boards_dir / p.rel_path
-            if not f.exists():
-                continue
-            h = dedup.compute(f, is_image=True)
-            p.content_sha256 = h.sha256
-            p.phash = h.phash
-            p.file_size = h.size
-            hashed += 1
+            if f.exists():
+                todo.append((p.id, str(f)))
+
+    hashed = 0
+    if todo:
+        workers = min(len(todo), (os.cpu_count() or 2))
+        with ProcessPoolExecutor(max_workers=workers) as ex:
+            results = list(ex.map(_hash_image_path, todo, chunksize=16))
+        with session_scope() as s:
+            for pid, sha, ph, size in results:
+                p = s.get(Pin, pid)
+                if p is None:
+                    continue
+                p.content_sha256 = sha
+                p.phash = ph
+                p.file_size = size
+                hashed += 1
 
     # 2) cluster and 3) write dup_group (group id = min pin id in the cluster)
     with session_scope() as s:

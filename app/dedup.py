@@ -154,17 +154,45 @@ def group_duplicates(
                 by_sha[s] = i
 
     # near phash pairs — same image, different resolution: tiny Hamming distance
-    # AND a matching aspect ratio. Both guards keep genuinely different images
-    # (and coarse-hash collisions) out of the same group.
-    with_ph = [(i, items[i]) for i in range(len(items)) if items[i].get("phash")]
-    for x in range(len(with_ph)):
-        ix, a = with_ph[x]
-        for y in range(x + 1, len(with_ph)):
-            iy, b = with_ph[y]
-            if find(ix) == find(iy):
-                continue
-            if hamming(a["phash"], b["phash"]) <= near_threshold and _aspect_match(a, b):
-                union(ix, iy)
+    # AND a matching aspect ratio. Instead of comparing every pair (O(n^2)), use
+    # banded LSH: split the hash into `near_threshold + 1` bands; two hashes
+    # within `near_threshold` bits must be identical in at least one band
+    # (pigeonhole), so only pins sharing a band are candidates.
+    ints: dict[int, int] = {}
+    for i, it in enumerate(items):
+        ph = it.get("phash")
+        if ph and len(ph) == PHASH_HEX_LEN:
+            try:
+                ints[i] = int(ph, 16)
+            except ValueError:
+                pass
+
+    nbits = PHASH_HEX_LEN * 4
+    bands = near_threshold + 1
+    per = max(1, nbits // bands)
+    band_buckets: dict[tuple[int, int], list[int]] = {}
+    for i, hph in ints.items():
+        for b in range(bands):
+            key = (b, (hph >> (b * per)) & ((1 << per) - 1))
+            band_buckets.setdefault(key, []).append(i)
+
+    seen_pairs: set[tuple[int, int]] = set()
+    for bucket in band_buckets.values():
+        if len(bucket) < 2:
+            continue
+        for x in range(len(bucket)):
+            ix = bucket[x]
+            for y in range(x + 1, len(bucket)):
+                iy = bucket[y]
+                pair = (ix, iy) if ix < iy else (iy, ix)
+                if pair in seen_pairs:
+                    continue
+                seen_pairs.add(pair)
+                if find(ix) == find(iy):
+                    continue
+                if (ints[ix] ^ ints[iy]).bit_count() <= near_threshold \
+                        and _aspect_match(items[ix], items[iy]):
+                    union(ix, iy)
 
     clusters: dict[int, list[dict]] = {}
     for i, it in enumerate(items):

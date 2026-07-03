@@ -89,19 +89,20 @@ def test_group_exact_only():
     assert {r["id"] for r in groups[0]} == {1, 2}
 
 
+def _ph(hexlow: str) -> str:
+    """A full-length (256-bit) phash from its low hex digits."""
+    return hexlow.rjust(dedup.PHASH_HEX_LEN, "0")
+
+
 def test_group_near_only():
-    rows = [_row(1, ph="0000000000000000"), _row(2, ph="0000000000000001")]
+    rows = [_row(1, ph=_ph("0")), _row(2, ph=_ph("1"))]  # Hamming 1
     groups = dedup.group_duplicates(rows, near_threshold=6)
     assert len(groups) == 1 and len(groups[0]) == 2
 
 
 def test_group_transitive_chain():
     # A~B (dist 1), B~C (dist 1), A..C (dist 2) — all one cluster via union-find.
-    rows = [
-        _row(1, ph="0000000000000000"),
-        _row(2, ph="0000000000000001"),
-        _row(3, ph="0000000000000003"),
-    ]
+    rows = [_row(1, ph=_ph("0")), _row(2, ph=_ph("1")), _row(3, ph=_ph("3"))]
     groups = dedup.group_duplicates(rows, near_threshold=1)
     assert len(groups) == 1
     assert {r["id"] for r in groups[0]} == {1, 2, 3}
