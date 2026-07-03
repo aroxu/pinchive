@@ -14,12 +14,16 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import subprocess
 import sys
+import time
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+
+import httpx
 
 from app import dedup
 
@@ -30,6 +34,51 @@ logger = logging.getLogger("pinchive.download")
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
 VIDEO_EXTS = {".mp4", ".webm", ".mov", ".mkv", ".m4v"}
 MEDIA_EXTS = IMAGE_EXTS | VIDEO_EXTS
+
+# Pinterest returns 403 for some `i.pinimg.com/originals/…` images (originals are
+# selectively blocked) while serving the SAME picture at a sized CDN path. When
+# gallery-dl exhausts its fallbacks and gives up, we recover the pin by fetching
+# a large sized variant ourselves. These need no auth (a UA is enough).
+_RE_403 = re.compile(r"for '(https?://i\.pinimg\.com/originals/\S+?)'")
+_RE_FAILED = re.compile(r"Failed to download (\S+)")
+_SIZED_FALLBACKS = ("736x", "564x")
+_PINIMG_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+)
+
+
+def _sized_url(orig_url: str, size: str) -> str | None:
+    """Rewrite an `…/originals/AA/BB/CC/HASH.ext` URL to a sized-variant path.
+    Sized variants are always served as .jpg regardless of the original type."""
+    m = re.search(r"/originals/(.+)$", orig_url)
+    if not m:
+        return None
+    tail = re.sub(r"\.\w+$", ".jpg", m.group(1))
+    return f"https://i.pinimg.com/{size}/{tail}"
+
+
+def _fetch_sized_fallback(dest: Path, fname: str, orig_url: str) -> bool:
+    """Try to save a sized variant of a 403'd original. Returns True on success."""
+    out = (dest / fname).with_suffix(".jpg")  # sized variants are jpg
+    for size in _SIZED_FALLBACKS:
+        url = _sized_url(orig_url, size)
+        if not url:
+            return False
+        try:
+            with httpx.stream(
+                "GET", url, headers={"User-Agent": _PINIMG_UA},
+                timeout=30, follow_redirects=True,
+            ) as r:
+                if r.status_code != 200:
+                    continue
+                with out.open("wb") as f:
+                    for chunk in r.iter_bytes():
+                        f.write(chunk)
+            return True
+        except (httpx.HTTPError, OSError):
+            continue
+    return False
 
 
 @dataclass
@@ -93,6 +142,15 @@ def build_command(
         "--write-metadata",                # sidecar .json per file (archival)
         "--retries", "3",
         "-o", "extractor.pinterest.videos=true",
+        # Pinterest videos are HLS (m3u8). yt-dlp's *native* HLS downloader
+        # fetches each segment to a `.part-FragN` temp file and merges them; under
+        # a bulk board run the signed segment URLs expire / rate-limit mid-way,
+        # leaving a fragment missing -> "No such file or directory: …part-FragN"
+        # and the whole video fails. Handing HLS to ffmpeg streams the manifest in
+        # one process (no per-fragment temp files), which is far more resilient;
+        # fragment_retries adds headroom for the occasional flaky segment.
+        "-o", "downloader.ytdl.raw-options.hls_prefer_native=false",
+        "-o", "downloader.ytdl.raw-options.fragment_retries=20",
         # If a single file stalls (no data) this long, abort just that file and
         # move on to the next pin — no overall board timeout.
         "-o", f"downloader.http.timeout={stall_timeout}",
@@ -121,6 +179,11 @@ def run_download(
     log_maxlen: int = 60,
 ) -> DownloadResult:
     dest.mkdir(parents=True, exist_ok=True)
+    # A container restart mid-download can leave yt-dlp/gallery-dl temp files
+    # (`*.part`, HLS `*.part-FragN`, `*.ytdl`). gallery-dl skips a pin whose final
+    # file already exists but a leftover *part* can wedge a resumed download, so
+    # clear them before we (re)start — the archive still skips completed pins.
+    _clean_partials(dest)
     cmd = build_command(
         url, dest, cookies_file=cookies_file, archive_file=archive_file,
         sleep=sleep, stall_timeout=stall_timeout,
@@ -141,24 +204,37 @@ def run_download(
 
     assert proc.stdout is not None
     since_flush = 0
+    pending_403: list[str] = []                 # originals URLs 403'd for cur file
+    fallback_tasks: list[tuple[str, str]] = []  # (filename, orig_url) to recover
     for raw in proc.stdout:
         line = raw.rstrip("\n")
         if not line.strip():
             continue
         if line.startswith("# "):
             prog.skipped += 1
+            pending_403 = []
             logger.info("skip · %s (already downloaded)", line[2:].strip())
         elif line.startswith("["):
             log.append(line)
             low = line.lower()
+            m403 = _RE_403.search(line)
+            if m403:
+                pending_403.append(m403.group(1))
             if "[error]" in low:
                 prog.errors += 1
                 logger.warning("%s", line)
+                mfail = _RE_FAILED.search(line)
+                if mfail and pending_403:
+                    name = mfail.group(1)
+                    if Path(name).suffix.lower() in IMAGE_EXTS:
+                        fallback_tasks.append((name, pending_403[-1]))
+                    pending_403 = []
             else:
                 logger.info("%s", line)
         else:
             prog.downloaded += 1
             prog.last_line = line
+            pending_403 = []
             logger.info("ok   · %s", line)
         since_flush += 1
         if on_progress and since_flush >= progress_every:
@@ -166,6 +242,23 @@ def run_download(
             on_progress(Progress(prog.downloaded, prog.skipped, prog.errors, prog.last_line))
 
     returncode = proc.wait()
+
+    # Recover images Pinterest blocked at `originals/` by fetching a sized variant
+    # of the same picture. Runs after the download so it never slows the main pass.
+    if fallback_tasks:
+        recovered = 0
+        logger.info("↻ recovering %s blocked image(s) via sized fallback", len(fallback_tasks))
+        for name, orig_url in fallback_tasks:
+            if _fetch_sized_fallback(dest, name, orig_url):
+                recovered += 1
+                logger.info("ok   · %s (sized fallback)", name)
+                if sleep > 0:
+                    time.sleep(sleep)
+        if recovered:
+            prog.downloaded += recovered
+            prog.errors = max(0, prog.errors - recovered)
+            logger.info("↻ recovered %s/%s blocked image(s)", recovered, len(fallback_tasks))
+
     if on_progress:
         on_progress(Progress(prog.downloaded, prog.skipped, prog.errors, prog.last_line))
 
@@ -181,6 +274,18 @@ def run_download(
         media=media,
         board_name=extract_board_name(dest),
     )
+
+
+def _clean_partials(dest: Path) -> None:
+    """Delete leftover download temp files from an interrupted run."""
+    if not dest.exists():
+        return
+    for pat in ("*.part", "*.part-Frag*", "*.ytdl"):
+        for f in dest.rglob(pat):
+            try:
+                f.unlink()
+            except OSError:
+                pass
 
 
 def extract_board_name(dest: Path) -> str | None:
