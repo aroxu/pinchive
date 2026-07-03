@@ -443,6 +443,15 @@ table.cred tr:last-child td { border-bottom: none; }
   padding: 3px 6px; border-radius: var(--r-xs); cursor: pointer;
 }
 
+/* ---- settings form ---------------------------------------------------- */
+.settings-grid {
+  display: grid; gap: var(--s-lg);
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+.settings-grid .field .hint { font-size: 12px; margin-top: 4px; display: block; }
+.settings-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; }
+@media (max-width: 640px) { .settings-grid { grid-template-columns: 1fr; } }
+
 /* ---- pagination ------------------------------------------------------- */
 .pager {
   display: flex; align-items: center; justify-content: center; gap: var(--s-md);

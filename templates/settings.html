@@ -20,28 +20,75 @@
     {% if synced %}
     <p class="body-sm" style="color:var(--primary);margin-bottom:var(--s-md)">{{ t('settings.synced') }}</p>
     {% endif %}
+    {% if saved %}
+    <p class="body-sm" style="color:var(--primary);margin-bottom:var(--s-md)">{{ t('settings.saved') }}</p>
+    {% endif %}
 
     <div class="card">
+      <form method="post" action="/settings/save" class="settings-grid">
+        <label class="field">
+          <span class="lbl">{{ t('settings.resync_interval') }}</span>
+          <input class="input" type="number" name="resync_every_hours" min="0" max="168"
+                 value="{{ eff.resync_every_hours }}">
+          <span class="hint muted">{{ t('settings.zero_disables') }}</span>
+        </label>
+        <label class="field">
+          <span class="lbl">{{ t('settings.refresh_interval') }}</span>
+          <input class="input" type="number" name="refresh_every_hours" min="0" max="168"
+                 value="{{ eff.refresh_every_hours }}">
+          <span class="hint muted">{{ t('settings.zero_disables') }}</span>
+        </label>
+        <label class="field">
+          <span class="lbl">{{ t('settings.timeout') }}</span>
+          <input class="input" type="number" name="pin_stall_timeout" min="30" max="7200"
+                 value="{{ eff.pin_stall_timeout }}">
+          <span class="hint muted">{{ t('settings.seconds_unit', n='') }}</span>
+        </label>
+        <label class="field">
+          <span class="lbl">{{ t('settings.dl_sleep') }}</span>
+          <input class="input" type="number" step="0.1" name="dl_sleep" min="0" max="30"
+                 value="{{ eff.dl_sleep }}">
+        </label>
+        <label class="field">
+          <span class="lbl">{{ t('settings.per_page_boards') }}</span>
+          <input class="input" type="number" name="per_page_boards" min="1" max="200"
+                 value="{{ eff.per_page_boards }}">
+        </label>
+        <label class="field">
+          <span class="lbl">{{ t('settings.per_page_pins') }}</span>
+          <input class="input" type="number" name="per_page_pins" min="1" max="500"
+                 value="{{ eff.per_page_pins }}">
+        </label>
+        <label class="field">
+          <span class="lbl">{{ t('settings.per_page_dupes') }}</span>
+          <input class="input" type="number" name="per_page_dupes" min="1" max="200"
+                 value="{{ eff.per_page_dupes }}">
+        </label>
+        <label class="field" style="justify-content:flex-end">
+          <span class="lbl">{{ t('settings.playwright') }}</span>
+          <label class="autosync" style="height:40px">
+            <input type="checkbox" name="use_playwright_fallback" value="true"
+                   {{ 'checked' if eff.use_playwright_fallback }}>
+            <span>{{ t('settings.enabled') if eff.use_playwright_fallback else t('settings.disabled') }}</span>
+          </label>
+        </label>
+
+        <div class="settings-actions">
+          <button class="btn btn-primary" type="submit">{{ t('settings.save') }}</button>
+        </div>
+      </form>
+
+      <hr class="hr" style="margin:var(--s-lg) 0">
       <table class="cred">
         <tbody>
-          <tr><td>{{ t('settings.resync_interval') }}</td><td class="body-strong">
-            {% if cfg.resync_every_hours %}{{ t('settings.every_hours', n=cfg.resync_every_hours) }}{% else %}{{ t('settings.disabled') }}{% endif %}
-          </td></tr>
-          <tr><td>{{ t('settings.refresh_interval') }}</td><td class="body-strong">
-            {% if cfg.refresh_every_hours %}{{ t('settings.every_hours', n=cfg.refresh_every_hours) }}{% else %}{{ t('settings.disabled') }}{% endif %}
-          </td></tr>
-          <tr><td>{{ t('settings.concurrency') }}</td><td class="body-strong">{{ cfg.max_concurrency }}</td></tr>
-          <tr><td>{{ t('settings.timeout') }}</td><td class="body-strong">{{ t('settings.seconds_unit', n=cfg.pin_stall_timeout) }}</td></tr>
-          <tr><td>{{ t('settings.page_sizes') }}</td><td class="body-strong">{{ cfg.per_page_boards }} / {{ cfg.per_page_pins }} / {{ cfg.per_page_dupes }}</td></tr>
-          <tr><td>{{ t('settings.playwright') }}</td><td class="body-strong">
-            {% if cfg.use_playwright_fallback %}{{ t('settings.enabled') }}{% else %}{{ t('settings.disabled') }}{% endif %}
+          <tr><td>{{ t('settings.concurrency') }}</td><td class="body-strong">
+            {{ cfg.max_concurrency }} <span class="body-sm muted">· {{ t('settings.restart_note') }}</span>
           </td></tr>
           <tr><td>{{ t('settings.queue') }}</td><td>
             <span class="badge"><span class="badge-dot {{ 'dot-emerald' if queue_up else 'dot-rose' }}"></span>{{ t('settings.on') if queue_up else t('settings.off') }}</span>
           </td></tr>
         </tbody>
       </table>
-      <p class="body-sm muted" style="margin-top:var(--s-md)">{{ t('settings.env_note') }}</p>
     </div>
   </div>
 </section>

@@ -188,3 +188,11 @@ class Tag(SQLModel, table=True):
     pins: List["Pin"] = Relationship(
         back_populates="tags", link_model=PinTagLink
     )
+
+
+class Setting(SQLModel, table=True):
+    """Runtime setting override (key -> value as text). Absent key = use the
+    env/config default. See app.appsettings."""
+
+    key: str = Field(primary_key=True)
+    value: str

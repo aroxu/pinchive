@@ -17,7 +17,7 @@ from starlette.datastructures import MutableHeaders
 from sqlalchemy import func, or_
 from sqlmodel import Session, select
 
-from app import auth, dedup, i18n
+from app import appsettings, auth, dedup, i18n
 from app.config import get_settings
 from app.db import get_session, init_db
 from app.models import (
@@ -188,7 +188,7 @@ def index(
         )
     stmt = stmt.order_by(Board.created_at.desc())
     boards, page, pages, total = _paginate(
-        session, stmt, page, settings.per_page_boards
+        session, stmt, page, appsettings.get("per_page_boards")
     )
 
     creds = session.exec(select(Credential).order_by(Credential.name)).all()
@@ -272,7 +272,9 @@ def board_detail(
     sort = sort if sort in PIN_SORTS else "new"
     view = view if view in PIN_VIEWS else "m"
     stmt = stmt.order_by(*PIN_SORTS[sort])
-    pins, page, pages, total = _paginate(session, stmt, page, settings.per_page_pins)
+    pins, page, pages, total = _paginate(
+        session, stmt, page, appsettings.get("per_page_pins")
+    )
 
     all_tags = session.exec(select(Tag).order_by(Tag.name)).all()
     return templates.TemplateResponse(
@@ -305,6 +307,7 @@ def credentials_page(request: Request):
 def settings_page(
     request: Request,
     synced: str = Query(default=""),
+    saved: str = Query(default=""),
     session: Session = Depends(get_session),
 ):
     creds = session.exec(select(Credential).order_by(Credential.name)).all()
@@ -314,10 +317,19 @@ def settings_page(
         {
             "credentials": creds,
             "cfg": settings,
+            "eff": appsettings.effective(),
             "queue_up": request.app.state.arq is not None,
             "synced": synced == "1",
+            "saved": saved == "1",
         },
     )
+
+
+@app.post("/settings/save")
+async def settings_save(request: Request):
+    form = await request.form()
+    appsettings.save(dict(form))
+    return RedirectResponse("/settings?saved=1", status_code=303)
 
 
 @app.post("/settings/sync-all")
@@ -683,7 +695,7 @@ def duplicates_page(
         groups.append(pins)
     total_extra = sum(len(g) - 1 for g in groups)
     page_groups, page, pages, total = _paginate_list(
-        groups, page, settings.per_page_dupes
+        groups, page, appsettings.get("per_page_dupes")
     )
     return templates.TemplateResponse(
         request,

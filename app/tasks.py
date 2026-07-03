@@ -15,7 +15,7 @@ from arq import cron
 from arq.connections import RedisSettings
 from sqlmodel import select
 
-from app import auth
+from app import appsettings, auth
 from app.config import get_settings
 from app.db import init_db, session_scope
 from app.downloader import Progress, run_download, scan_media
@@ -111,8 +111,8 @@ async def download_board(ctx: dict, board_id: int) -> dict:
             dest,
             cookies_file=cookies_file,
             archive_file=archive_file,
-            sleep=settings.dl_sleep,
-            stall_timeout=settings.pin_stall_timeout,
+            sleep=appsettings.get("dl_sleep"),
+            stall_timeout=appsettings.get("pin_stall_timeout"),
             on_progress=on_progress,
         ),
     )
@@ -244,7 +244,7 @@ async def refresh_credential(ctx: dict, cred_id: int) -> dict:
 
     # Session truly dead (server-side logout / long inactivity). Cookie rotation
     # can't help here — only a full re-login can, if configured.
-    if not res.active and settings.use_playwright_fallback:
+    if not res.active and appsettings.get("use_playwright_fallback"):
         await _attempt_auto_refresh(cred_id)
 
     return {"active": res.active, "message": res.message, "rotated": res.rotated}
@@ -397,24 +397,34 @@ async def _startup(ctx: dict) -> None:
     await _resume_interrupted(ctx)
 
 
+# The cron intervals are runtime-editable (app.appsettings), so the crons fire
+# hourly and gate on the effective interval + a stored last-run timestamp. That
+# makes an interval change on the Settings page take effect without a restart.
+async def _cron_refresh(ctx: dict) -> dict:
+    interval = appsettings.get("refresh_every_hours")
+    if not interval or interval <= 0:
+        return {"skipped": "disabled"}
+    if not appsettings.due("_last_refresh_at", interval):
+        return {"skipped": "not due"}
+    appsettings.set_raw("_last_refresh_at", _now().isoformat())
+    return await refresh_all_credentials(ctx)
+
+
+async def _cron_resync(ctx: dict) -> dict:
+    interval = appsettings.get("resync_every_hours")
+    if not interval or interval <= 0:
+        return {"skipped": "disabled"}
+    if not appsettings.due("_last_resync_at", interval):
+        return {"skipped": "not due"}
+    appsettings.set_raw("_last_resync_at", _now().isoformat())
+    return await resync_all_boards(ctx)
+
+
 def _build_cron_jobs() -> list:
-    jobs = [
-        cron(
-            refresh_all_credentials,
-            hour=settings.refresh_hours(),
-            minute=settings.refresh_minute,
-        )
+    return [
+        cron(_cron_refresh, minute=0),   # hourly; gated by refresh interval
+        cron(_cron_resync, minute=30),   # hourly; gated by resync interval
     ]
-    resync_hours = settings.resync_hours()
-    if resync_hours:  # empty set => auto-resync disabled
-        jobs.append(
-            cron(
-                resync_all_boards,
-                hour=resync_hours,
-                minute=settings.resync_minute,
-            )
-        )
-    return jobs
 
 
 class WorkerSettings:

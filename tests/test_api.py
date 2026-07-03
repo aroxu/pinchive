@@ -78,6 +78,19 @@ def test_sync_all_and_rescan_redirect(client):
                        follow_redirects=False).status_code == 303
 
 
+def test_settings_save_changes_pagination_live(client):
+    per = settings.per_page_boards
+    for i in range(per + 5):
+        _mk_board(title=f"P{i:03d}", slug=f"ps{i}")
+    assert "Page 1 / 2" in client.get("/").text          # default -> paginated
+    r = client.post("/settings/save",
+                    data={"per_page_boards": str(per + 50)},
+                    follow_redirects=False)
+    assert r.status_code == 303
+    body = client.get("/").text
+    assert "Page 1 / 2" not in body                       # now everything fits
+
+
 def test_add_board_without_queue_becomes_pending(client):
     r = client.post("/boards", data={"url": "https://www.pinterest.com/u/b/",
                                      "credential_id": ""})

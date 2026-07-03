@@ -94,6 +94,22 @@ def test_no_board_timeout():
     assert WorkerSettings.job_timeout >= 24 * 3600
 
 
+def test_cron_resync_gates_on_interval():
+    from app import appsettings
+    from app.tasks import _cron_resync
+
+    appsettings.save({"resync_every_hours": "0"})        # disabled
+    r = asyncio.run(_cron_resync({"redis": _FakePool()}))
+    assert r.get("skipped") == "disabled"
+
+    appsettings.save({"resync_every_hours": "6"})        # enabled, never run -> due
+    r = asyncio.run(_cron_resync({"redis": _FakePool()}))
+    assert "skipped" not in r                            # ran (updated last-run)
+
+    r = asyncio.run(_cron_resync({"redis": _FakePool()}))  # just ran -> not due
+    assert r.get("skipped") == "not due"
+
+
 def test_resume_interrupted_reenqueues_stuck_boards():
     from app.tasks import _resume_interrupted
     d = _mk(BoardStatus.downloading, True)
