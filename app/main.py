@@ -27,15 +27,23 @@ from app.models import (
     BoardTagLink,
     Credential,
     CredentialStatus,
+    DeletedPin,
     Pin,
     Tag,
 )
-from app.tasks import derive_slug
+from app.tasks import board_folder, derive_slug
 
 settings = get_settings()
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 ACTIVE_STATUSES = {BoardStatus.pending, BoardStatus.queued, BoardStatus.downloading}
+
+# User-facing board state is just two: "working" (still going) and "done"
+# (finished, however it finished). These map onto the internal statuses.
+_STATUS_GROUPS = {
+    "working": [BoardStatus.pending, BoardStatus.queued, BoardStatus.downloading],
+    "done": [BoardStatus.done, BoardStatus.partial, BoardStatus.error],
+}
 
 
 @asynccontextmanager
@@ -178,8 +186,8 @@ def index(
         stmt = stmt.where(
             or_(Board.title.ilike(like), Board.url.ilike(like), Board.slug.ilike(like))
         )
-    if status and status in BoardStatus.__members__:
-        stmt = stmt.where(Board.status == BoardStatus(status))
+    if status in _STATUS_GROUPS:
+        stmt = stmt.where(Board.status.in_(_STATUS_GROUPS[status]))
     tag = tag.strip()
     if tag:
         stmt = (
@@ -205,7 +213,7 @@ def index(
             "q": q,
             "active_status": status,
             "active_tag": tag,
-            "statuses": list(BoardStatus.__members__.keys()),
+            "statuses": list(_STATUS_GROUPS.keys()),
             "page": page,
             "pages": pages,
             "total": total,
@@ -225,11 +233,16 @@ def hero_stats(request: Request, session: Session = Depends(get_session)):
 
 # Pin sort options -> ORDER BY clauses. `_area` orders by pixel resolution.
 _area = Pin.width * Pin.height
+# Recency = the Pinterest pin id, which is time-ordered (higher id = added more
+# recently), and is embedded in the filename `pinterest_<pinid>_…`. We sort on
+# the filename rather than the DB row id because the row id is reassigned when a
+# board is re-synced (the reconcile re-inserts by filename), which would flip the
+# order; the filename is stable. Newest = filename descending.
 PIN_SORTS = {
-    "new": [Pin.id.desc()],
-    "old": [Pin.id.asc()],
-    "big": [_area.desc(), Pin.id.desc()],
-    "small": [_area.asc(), Pin.id.asc()],
+    "new": [Pin.filename.desc()],
+    "old": [Pin.filename.asc()],
+    "big": [_area.desc(), Pin.filename.desc()],
+    "small": [_area.asc(), Pin.filename.asc()],
     "name": [Pin.filename.asc(), Pin.id.asc()],
 }
 PIN_VIEWS = {"s", "m", "l"}
@@ -436,14 +449,28 @@ async def toggle_resync(
 @app.post("/boards/{board_id}/delete")
 async def delete_board(
     board_id: int,
-    purge: str = Form(default=""),
     session: Session = Depends(get_session),
 ):
     board = session.get(Board, board_id)
     if board is None:
         raise HTTPException(404, "board not found")
-    if purge and board.dest_path:
-        _rmtree_safe(Path(board.dest_path))
+
+    # Remove the whole media folder (images, videos, sidecars, gallery-dl
+    # archive) and any deleted-duplicate tombstones for it, so deleting a board
+    # leaves nothing behind on disk or in the DB. Pin rows (and their tag links)
+    # go via the ORM cascade on Board.pins.
+    dest = None
+    if board.dest_path:
+        dest = Path(board.dest_path)
+    elif board.slug:
+        dest = settings.boards_dir / board_folder(board.slug, board_id)
+    if dest is not None:
+        _rmtree_safe(dest)
+        for tomb in session.exec(
+            select(DeletedPin).where(DeletedPin.rel_path.like(f"{dest.name}/%"))
+        ).all():
+            session.delete(tomb)
+
     session.delete(board)
     session.commit()
     return RedirectResponse("/", status_code=303)
@@ -714,6 +741,7 @@ async def resolve_duplicates(
         if pin is None:
             continue
         affected.add(pin.board_id)
+        _tombstone_pin(session, pin)
         _delete_pin_files(pin)
         session.delete(pin)
     session.commit()
@@ -764,6 +792,7 @@ async def resolve_all_duplicates(
     for group in _stored_dup_groups(session):
         for pin in group[1:]:  # group[0] is the highest-res keeper
             affected.add(pin.board_id)
+            _tombstone_pin(session, pin)
             _delete_pin_files(pin)
             session.delete(pin)
     session.commit()
@@ -805,6 +834,12 @@ def _rmtree_safe(path: Path) -> None:
             shutil.rmtree(resolved, ignore_errors=True)
     except OSError:
         pass
+
+
+def _tombstone_pin(session: Session, pin: Pin) -> None:
+    """Record a deleted-duplicate's path so a board re-sync never re-adds it."""
+    if session.get(DeletedPin, pin.rel_path) is None:
+        session.add(DeletedPin(rel_path=pin.rel_path))
 
 
 def _delete_pin_files(pin: Pin) -> None:

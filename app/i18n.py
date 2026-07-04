@@ -113,7 +113,8 @@ EN = {
     "empty.no_boards_body": "Add a Pinterest board URL above to start archiving.",
     "empty.no_matching_boards_title": "No matching boards.",
     "empty.try_clear": "Try clearing filters.",
-    # board status
+    # board status (user-facing is just working/done; the rest are internal)
+    "status.working": "working",
     "status.done": "done",
     "status.downloading": "downloading",
     "status.queued": "queued",
@@ -135,7 +136,7 @@ EN = {
     "autosync.off": "auto-sync off",
     "autosync.title": "Include this board in the periodic auto-resync",
     "tag.add": "+ tag",
-    "confirm.delete_board": "Remove this board from Pinchive?",
+    "confirm.delete_board": "Delete this board and all its downloaded files from disk?",
     # cta
     "cta.title": "Keep sessions fresh.",
     "cta.body": "Private boards need valid cookies. Pinchive re-checks them on a "
@@ -287,6 +288,7 @@ KO = {
     "empty.no_boards_body": "위에 Pinterest 보드 URL 을 추가해 시작하세요.",
     "empty.no_matching_boards_title": "일치하는 보드가 없어요.",
     "empty.try_clear": "필터를 초기화해 보세요.",
+    "status.working": "작업중",
     "status.done": "완료",
     "status.downloading": "다운로드 중",
     "status.queued": "대기열",
@@ -307,7 +309,7 @@ KO = {
     "autosync.off": "자동동기화 꺼짐",
     "autosync.title": "이 보드를 주기적 자동 재동기화에 포함",
     "tag.add": "+ 태그",
-    "confirm.delete_board": "이 보드를 Pinchive 에서 삭제할까요?",
+    "confirm.delete_board": "이 보드와 다운로드된 모든 파일을 디스크에서 삭제할까요?",
     "cta.title": "세션을 항상 유효하게.",
     "cta.body": "비공개 보드는 유효한 쿠키가 필요합니다. Pinchive 가 주기적으로 확인하고 "
                 "만료를 표시해, 비공개 아카이브가 조용히 멈추지 않게 합니다.",

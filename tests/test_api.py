@@ -131,11 +131,14 @@ def test_untag_board(client):
 
 def test_search_and_status_filter(client):
     _mk_board(title="Interior Ideas", slug="interior", status=BoardStatus.done)
-    _mk_board(title="Workshop Refs", slug="workshop", status=BoardStatus.error)
+    _mk_board(title="Workshop Refs", slug="workshop", status=BoardStatus.downloading)
     assert "Interior Ideas" in client.get("/?q=interior").text
     assert "Workshop Refs" not in client.get("/?q=interior").text
-    assert "Workshop Refs" in client.get("/?status=error").text
-    assert "Interior Ideas" not in client.get("/?status=error").text
+    # Two user-facing states: working (active) vs done (finished, incl. error).
+    assert "Workshop Refs" in client.get("/?status=working").text
+    assert "Interior Ideas" not in client.get("/?status=working").text
+    assert "Interior Ideas" in client.get("/?status=done").text
+    assert "Workshop Refs" not in client.get("/?status=done").text
 
 
 def test_board_detail_polls_while_downloading(client):
@@ -209,11 +212,17 @@ def test_duplicates_detect_and_resolve(client, make_image):
     assert "No duplicates found" in client.get("/duplicates").text
 
 
-def test_delete_board_removes_row(client):
+def test_delete_board_removes_row_and_files(client):
     bid = _mk_board(slug="del")
-    client.post(f"/boards/{bid}/delete", data={"purge": ""}, follow_redirects=False)
+    folder = settings.boards_dir / f"del-{bid}"
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "pin.jpg").write_bytes(b"x")
+    (folder / "pin.jpg.json").write_text("{}")
+    _mk_pin(bid, f"del-{bid}/pin.jpg")
+    client.post(f"/boards/{bid}/delete", follow_redirects=False)
     with session_scope() as s:
         assert s.get(Board, bid) is None
+    assert not folder.exists()  # media folder wiped from disk too
 
 
 def test_board_pagination(client):
@@ -255,8 +264,9 @@ def test_pin_sort_by_name_and_recency(client):
     z = _mk_pin(bid, "srt2/zzz.jpg")   # higher id
     name = client.get(f"/boards/{bid}?sort=name").text
     assert name.index("aaa.jpg") < name.index("zzz.jpg")
+    # Recency = Pinterest pin id (embedded in the filename); higher = newer.
     new = client.get(f"/boards/{bid}?sort=new").text
-    assert new.index("zzz.jpg") < new.index("aaa.jpg")  # newest (higher id) first
+    assert new.index("zzz.jpg") < new.index("aaa.jpg")  # newest (higher filename) first
     old = client.get(f"/boards/{bid}?sort=old").text
     assert old.index("aaa.jpg") < old.index("zzz.jpg")
     assert a < z
