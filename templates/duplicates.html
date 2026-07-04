@@ -55,9 +55,13 @@
         {% for pin in group %}
         <div class="dupe-item {{ 'keep' if loop.first }}">
           {% if loop.first %}<span class="keep-badge">{{ t('dup.keep') }}</span>{% endif %}
+          {% if pin.media_type == "video" %}
+          <video src="/media/{{ pin.rel_path }}#t=0.1" controls preload="metadata" playsinline></video>
+          {% else %}
           <a href="/media/{{ pin.rel_path }}" target="_blank" rel="noopener">
             <img loading="lazy" src="/media/{{ pin.rel_path }}" alt="{{ pin.filename }}">
           </a>
+          {% endif %}
           <label class="pick">
             <input type="checkbox" name="pin_ids" value="{{ pin.id }}"
                    {{ 'checked' if not loop.first }}>

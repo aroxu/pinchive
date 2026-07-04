@@ -258,6 +258,26 @@ h1, h2, h3, h4 {
   padding: var(--s-xs) var(--s-md);
   font-family: var(--font-mono); font-size: 12px; color: var(--muted);
 }
+
+/* Collapsible download-log accordion, shown below the pin grid. */
+.log-accordion {
+  background: var(--surface-card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.log-accordion > summary {
+  cursor: pointer; user-select: none; list-style: none;
+  display: flex; align-items: center; gap: var(--s-sm);
+  padding: var(--s-sm) var(--s-md);
+  font-family: var(--font-mono); font-size: 13px; color: var(--muted);
+}
+.log-accordion > summary::-webkit-details-marker { display: none; }
+.log-accordion > summary::before { content: "▸"; color: var(--muted-soft); font-size: 11px; }
+.log-accordion[open] > summary::before { content: "▾"; }
+.log-accordion > summary:hover { color: var(--on-dark); }
+.log-accordion .code-window { border: 0; border-top: 1px solid var(--hairline); border-radius: 0; }
+.log-accordion .code-window pre { max-height: 420px; overflow: auto; }
 .tok-key { color: var(--blue); }
 .tok-str { color: var(--primary); }
 .tok-com { color: var(--muted-soft); }

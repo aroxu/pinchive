@@ -9,15 +9,17 @@
     <div class="row between row-wrap" style="margin-top:var(--s-md)">
       <div>
         <h1 class="display-md">{{ board.display_title }}</h1>
-        <a class="board-url" href="{{ board.url }}" target="_blank" rel="noopener">{{ board.url }}</a>
+        <a class="board-url" href="{{ board.url }}" target="_blank" rel="noopener">{{ board.display_url }}</a>
       </div>
       <div class="row">
         <div class="count-item">
           <span class="stat-sm" id="pin-count">{{ total }}</span>
           <span class="k muted caption-uc">{{ t('stat.matching_pins') if (q or active_type or dupes) else t('stat.pins_on_disk') }}</span>
         </div>
+        <!-- Reload after enqueue so the page re-renders in its active (queued)
+             state: the pin grid starts live-polling and the progress line shows. -->
         <button class="btn btn-primary btn-sm" hx-post="/boards/{{ board.id }}/redownload"
-                hx-target="this" hx-swap="none">{{ t('btn.resync') }}</button>
+                hx-swap="none" hx-on::after-request="window.location.reload()">{{ t('btn.resync') }}</button>
       </div>
     </div>
     <!-- Live download progress. board.downloaded/skipped/error_count are updated
@@ -33,24 +35,6 @@
     </div>
   </div>
 </section>
-
-{% if board.log_tail %}
-<section class="section" style="padding-top:0">
-  <div class="container">
-    <div class="code-window">
-      <div class="chrome">
-        <span class="lamp"></span><span class="lamp"></span><span class="lamp"></span>
-        <span class="caption muted" style="margin-left:auto">{{ t('log.title') }}</span>
-      </div>
-      <pre>{{ board.log_tail }}</pre>
-      <div class="statusbar">
-        {{ board.downloaded_count }} {{ t('count.downloaded') }} · {{ board.skipped_count }} {{ t('count.skipped') }}
-        {%- if board.error_count %} · <span style="color:var(--rose)">{{ board.error_count }} {{ t('count.errors') }}</span>{% endif %}
-      </div>
-    </div>
-  </div>
-</section>
-{% endif %}
 
 <section class="section" style="padding-top:0">
   <div class="container">
@@ -83,9 +67,12 @@
       {% endif %}
     </form>
 
+    <!-- Morph swap (idiomorph): the 3s poll updates only what changed instead of
+         replacing the grid, so already-loaded images/videos aren't reloaded —
+         no flicker, and videos keep playing. -->
     <div id="pins-live"
-         {% if active %}hx-get="{{ request.url }}" hx-trigger="every 3s"
-         hx-target="#pins-live" hx-select="#pins-live" hx-swap="outerHTML"
+         {% if active %}hx-ext="morph" hx-get="{{ request.url }}" hx-trigger="every 3s"
+         hx-target="#pins-live" hx-select="#pins-live" hx-swap="morph:outerHTML"
          hx-select-oob="#pin-count,#dl-progress"{% endif %}>
     {% if not pins %}
       <div class="card">
@@ -118,7 +105,7 @@
 
       <div class="pin-grid view-{{ active_view }}">
         {% for pin in pins %}
-        <div class="pin-cell">
+        <div class="pin-cell" id="pin-{{ pin.id }}">
           <label class="pin-check">
             <input type="checkbox" class="pin-select" value="{{ pin.id }}"
                    aria-label="select pin">
@@ -200,4 +187,26 @@
     </script>
   </div>
 </section>
+
+{% if board.log_tail %}
+<!-- Download log, tucked below the grid in a collapsed accordion so the 403
+     recoveries / skips don't read as a page-level error. Click to expand. -->
+<section class="section" style="padding-top:0">
+  <div class="container">
+    <details class="log-accordion">
+      <summary>
+        {{ t('log.title') }}
+        {%- if board.error_count %} · <span style="color:var(--rose)">{{ board.error_count }} {{ t('count.errors') }}</span>{% endif %}
+      </summary>
+      <div class="code-window">
+        <pre>{{ board.log_tail }}</pre>
+        <div class="statusbar">
+          {{ board.downloaded_count }} {{ t('count.downloaded') }} · {{ board.skipped_count }} {{ t('count.skipped') }}
+          {%- if board.error_count %} · <span style="color:var(--rose)">{{ board.error_count }} {{ t('count.errors') }}</span>{% endif %}
+        </div>
+      </div>
+    </details>
+  </div>
+</section>
+{% endif %}
 {% endblock %}

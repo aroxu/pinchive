@@ -4,20 +4,12 @@
   <div class="head">
     <div>
       <a class="board-title" href="/boards/{{ board.id }}">{{ board.display_title }}</a>
-      <div class="board-url">{{ board.url }}</div>
+      <div class="board-url">{{ board.display_url }}</div>
     </div>
-    {% if board.status == BoardStatus.done %}
-      <span class="badge"><span class="badge-dot dot-emerald"></span>{{ t('status.done') }}</span>
-    {% elif board.status == BoardStatus.downloading %}
-      <span class="badge"><span class="badge-dot dot-teal"></span>{{ t('status.downloading') }}</span>
-    {% elif board.status == BoardStatus.queued %}
-      <span class="badge"><span class="badge-dot dot-blue"></span>{{ t('status.queued') }}</span>
-    {% elif board.status == BoardStatus.pending %}
-      <span class="badge"><span class="badge-dot dot-muted"></span>{{ t('status.waiting') }}</span>
-    {% elif board.status == BoardStatus.partial %}
-      <span class="badge"><span class="badge-dot dot-rose"></span>{{ t('status.partial') }}</span>
+    {% if active %}
+      <span class="badge"><span class="badge-dot dot-teal"></span>{{ t('status.working') }}</span>
     {% else %}
-      <span class="badge"><span class="badge-dot dot-rose"></span>{{ t('status.error') }}</span>
+      <span class="badge"><span class="badge-dot dot-emerald"></span>{{ t('status.done') }}</span>
     {% endif %}
   </div>
 
