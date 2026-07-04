@@ -25,6 +25,15 @@ curl -fsSL "https://unpkg.com/htmx.org@2.0.3/dist/htmx.min.js" -o "$JS_OUT/htmx.
   exit 1
 }
 
+# idiomorph: DOM-morphing swap ('hx-swap="morph"'). Lets the live download poll
+# update only what changed instead of replacing the whole grid — so videos don't
+# reload/flicker and keep playing. Ships the htmx extension registration too.
+echo ">> idiomorph (required)"
+curl -fsSL "https://unpkg.com/idiomorph@0.3.0/dist/idiomorph-ext.min.js" -o "$JS_OUT/idiomorph-ext.min.js" || {
+  echo "!! FATAL: could not download idiomorph" >&2
+  exit 1
+}
+
 fetch_font() {
   local name="$1" url="$2"
   echo ">> font: $name (optional)"

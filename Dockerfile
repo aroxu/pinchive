@@ -45,6 +45,7 @@ COPY templates ./templates
 
 # ...then overlay vendored assets fetched in the assets stage so they win.
 COPY --from=assets /assets/htmx.min.js ./static/js/htmx.min.js
+COPY --from=assets /assets/idiomorph-ext.min.js ./static/js/idiomorph-ext.min.js
 COPY --from=assets /assets/fonts/ ./static/fonts/
 
 # Resolve `import app` to the /app source tree (next to templates/ + static/)

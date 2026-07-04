@@ -30,6 +30,7 @@ tar czf - \
   --exclude=.pytest_cache \
   --exclude=static/fonts \
   --exclude=static/js/htmx.min.js \
+  --exclude=static/js/idiomorph-ext.min.js \
   . | ssh "$HOST" "mkdir -p ~/$DIR && tar xzf - -C ~/$DIR"
 
 echo ">> building + starting on dev (docker compose up --build -d)"
