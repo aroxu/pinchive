@@ -177,6 +177,7 @@ def run_download(
     on_progress: Callable[[Progress], None] | None = None,
     progress_every: int = 5,
     log_maxlen: int = 60,
+    blocked: set[str] | None = None,
 ) -> DownloadResult:
     dest.mkdir(parents=True, exist_ok=True)
     # A container restart mid-download can leave yt-dlp/gallery-dl temp files
@@ -215,21 +216,31 @@ def run_download(
             pending_403 = []
             logger.info("skip · %s (already downloaded)", line[2:].strip())
         elif line.startswith("["):
-            log.append(line)
             low = line.lower()
             m403 = _RE_403.search(line)
             if m403:
                 pending_403.append(m403.group(1))
             if "[error]" in low:
-                prog.errors += 1
-                logger.warning("%s", line)
                 mfail = _RE_FAILED.search(line)
-                if mfail and pending_403:
-                    name = mfail.group(1)
-                    if Path(name).suffix.lower() in IMAGE_EXTS:
+                name = mfail.group(1) if mfail else None
+                rel = f"{dest.name}/{name}" if name else None
+                if rel and blocked and rel in blocked:
+                    # A pin the user deleted (tombstoned) that Pinterest still
+                    # offers — usually a 403 on the now-blocked original. It's meant
+                    # to be gone, so skip it silently rather than counting an error
+                    # or trying to recover it.
+                    prog.skipped += 1
+                    logger.info("skip · %s (deleted, not re-downloaded)", name)
+                else:
+                    log.append(line)
+                    prog.errors += 1
+                    logger.warning("%s", line)
+                    if name and pending_403 and Path(name).suffix.lower() in IMAGE_EXTS:
                         fallback_tasks.append((name, pending_403[-1]))
+                if name:
                     pending_403 = []
             else:
+                log.append(line)
                 logger.info("%s", line)
         else:
             prog.downloaded += 1

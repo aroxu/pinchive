@@ -135,6 +135,12 @@ class Board(SQLModel, table=True):
         return self.title or readable_name_from_url(self.url) or self.slug or "Board"
 
     @property
+    def display_url(self) -> str:
+        """The URL with percent-encoded Unicode decoded for display (e.g.
+        `%EA%B7%B8%EB%A6%BC` -> `그림`). The href keeps the real encoded URL."""
+        return unquote(self.url)
+
+    @property
     def progress_pct(self) -> int:
         total = self.pin_count or 0
         if total <= 0:
@@ -200,3 +206,15 @@ class Setting(SQLModel, table=True):
 
     key: str = Field(primary_key=True)
     value: str
+
+
+class DeletedPin(SQLModel, table=True):
+    """Tombstone for a pin removed as a duplicate. Keyed by rel_path (stable
+    across re-downloads: the filename is derived from the pin id). A board
+    re-sync skips already-archived pins, but non-archived ones (e.g. from an
+    interrupted download) would otherwise be re-fetched — the reconcile checks
+    this table and re-removes them so deleted duplicates never come back. Only
+    the deleted copy's exact path is blocked, so the kept copy is untouched."""
+
+    rel_path: str = Field(primary_key=True)
+    deleted_at: datetime = Field(default_factory=utcnow)

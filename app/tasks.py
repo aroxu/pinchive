@@ -22,7 +22,14 @@ from app import appsettings, auth
 from app.config import get_settings
 from app.db import init_db, session_scope
 from app.downloader import Progress, run_download, scan_media
-from app.models import Board, BoardStatus, Credential, CredentialStatus, Pin
+from app.models import (
+    Board,
+    BoardStatus,
+    Credential,
+    CredentialStatus,
+    DeletedPin,
+    Pin,
+)
 
 settings = get_settings()
 logger = logging.getLogger("pinchive.download")
@@ -50,6 +57,18 @@ def board_folder(slug: str, board_id: int) -> str:
     """Per-board directory name. The id suffix guarantees uniqueness so two
     boards with the same derived slug never share a folder."""
     return f"{slug}-{board_id}"
+
+
+def _remove_media_file(rel_path: str) -> None:
+    """Delete a media file (and its sidecar) under boards_dir, guarded to it."""
+    try:
+        f = (settings.boards_dir / rel_path).resolve()
+        if settings.boards_dir.resolve() not in f.parents:
+            return
+        f.unlink(missing_ok=True)
+        f.with_suffix(f.suffix + ".json").unlink(missing_ok=True)
+    except OSError:
+        pass
 
 
 # --------------------------------------------------------------------------- #
@@ -88,6 +107,14 @@ async def download_board(ctx: dict, board_id: int) -> dict:
         cookies_file = cf if cf.exists() else None
 
     logger.info("▶ board %s: downloading %s", board_id, url)
+    # Pins the user deleted as duplicates. Pinterest may still offer them (often a
+    # 403 on the blocked original); run_download skips those silently instead of
+    # erroring, and the reconcile below drops any that did slip through.
+    with session_scope() as s:
+        blocked = {
+            r for r in s.exec(select(DeletedPin.rel_path)).all()
+            if r.startswith(folder + "/")
+        }
     _last_pin_sync = [0.0]
 
     def on_progress(p: Progress) -> None:
@@ -117,6 +144,7 @@ async def download_board(ctx: dict, board_id: int) -> dict:
             sleep=appsettings.get("dl_sleep"),
             stall_timeout=appsettings.get("pin_stall_timeout"),
             on_progress=on_progress,
+            blocked=blocked,
         ),
     )
 
@@ -128,7 +156,6 @@ async def download_board(ctx: dict, board_id: int) -> dict:
         board.downloaded_count = result.downloaded
         board.skipped_count = result.skipped
         board.error_count = result.errors
-        board.pin_count = len(result.media)
         board.dest_path = str(result.dest)
         board.log_tail = result.log_tail
         if result.board_name:
@@ -136,11 +163,12 @@ async def download_board(ctx: dict, board_id: int) -> dict:
         board.finished_at = _now()
         board.updated_at = _now()
 
-        if result.ok:
+        if result.ok or result.partial:
+            # A run that produced media is "done" — recovered 403s / skipped
+            # deleted pins are not a user-facing failure. Only a run that got
+            # nothing is an error.
             board.status = BoardStatus.done
-        elif result.partial:
-            board.status = BoardStatus.partial
-            board.last_error = "some pins failed — see log"
+            board.last_error = None
         else:
             board.status = BoardStatus.error
             board.last_error = _last_error_line(result.log_tail) or "download failed"
@@ -152,9 +180,17 @@ async def download_board(ctx: dict, board_id: int) -> dict:
             p.rel_path: p
             for p in s.exec(select(Pin).where(Pin.board_id == board_id)).all()
         }
+        # Paths the user deleted as duplicates: if a re-sync re-fetched one (e.g.
+        # it wasn't in the gallery-dl archive), drop the file again and skip it so
+        # deleted duplicates never reappear. Only the exact deleted path is
+        # blocked, so the kept copy is unaffected.
+        blocked = set(s.exec(select(DeletedPin.rel_path)).all())
         seen: set[str] = set()
         for m in result.media:
             rel = f"{folder}/{m.rel_path}"
+            if rel in blocked:
+                _remove_media_file(rel)
+                continue
             seen.add(rel)
             pin = existing.get(rel) or Pin(board_id=board_id, rel_path=rel)
             pin.pinterest_id = m.pinterest_id
@@ -172,6 +208,14 @@ async def download_board(ctx: dict, board_id: int) -> dict:
         for rel, pin in existing.items():
             if rel not in seen:
                 s.delete(pin)
+
+        # Reconcile the board's counters with reality. `seen` is the true set of
+        # media on disk (after blocked/deleted pins were dropped), so pin_count is
+        # exactly that. gallery-dl's raw download tally counts re-downloads and
+        # fallbacks that don't persist, so clamp it so "downloaded" never exceeds
+        # what's actually archived.
+        board.pin_count = len(seen)
+        board.downloaded_count = min(board.downloaded_count, len(seen))
 
     status = "done" if result.ok else ("partial" if result.partial else "error")
     if result.ok:
@@ -272,12 +316,14 @@ async def recompute_duplicates(ctx: dict) -> dict:
     return await loop.run_in_executor(None, _recompute_duplicates_blocking)
 
 
-def _hash_image_path(args: tuple) -> tuple:
-    """Picklable worker for the process pool: (pin_id, abs_path) -> hashes."""
+def _hash_pin(args: tuple) -> tuple:
+    """Picklable pool worker: (pin_id, abs_path, is_image) -> hashes. Videos get
+    an exact sha256 only (no perceptual phash), so identical video files still
+    dedupe by exact bytes."""
     from app import dedup
 
-    pid, abs_path = args
-    h = dedup.compute(Path(abs_path), is_image=True)
+    pid, abs_path, is_image = args
+    h = dedup.compute(Path(abs_path), is_image=is_image)
     return pid, h.sha256, h.phash, h.size
 
 
@@ -298,12 +344,17 @@ def _recompute_duplicates_blocking() -> dict:
     #    across all cores (image decode + hashing is CPU-bound and independent).
     todo: list[tuple] = []
     with session_scope() as s:
-        for p in s.exec(select(Pin).where(Pin.media_type == "image")).all():
-            if p.content_sha256 and p.phash and len(p.phash) == dedup.PHASH_HEX_LEN:
-                continue  # already current
+        for p in s.exec(select(Pin)).all():
+            is_image = p.media_type == "image"
+            if is_image:
+                # up to date only with both an exact + a valid perceptual hash
+                if p.content_sha256 and p.phash and len(p.phash) == dedup.PHASH_HEX_LEN:
+                    continue
+            elif p.content_sha256:
+                continue  # videos need only the exact sha256
             f = settings.boards_dir / p.rel_path
             if f.exists():
-                todo.append((p.id, str(f)))
+                todo.append((p.id, str(f), is_image))
 
     hashed = 0
     if todo:
@@ -313,7 +364,7 @@ def _recompute_duplicates_blocking() -> dict:
         done = 0
         last = 0.0
         with ProcessPoolExecutor(max_workers=workers) as ex:
-            for r in ex.map(_hash_image_path, todo, chunksize=16):
+            for r in ex.map(_hash_pin, todo, chunksize=16):
                 results.append(r)
                 done += 1
                 now = time.monotonic()
@@ -335,7 +386,7 @@ def _recompute_duplicates_blocking() -> dict:
     # 2) cluster and 3) write dup_group (group id = min pin id in the cluster)
     set_dedup_status(running=True, phase="grouping")
     with session_scope() as s:
-        rows = s.exec(select(Pin).where(Pin.media_type == "image")).all()
+        rows = s.exec(select(Pin)).all()  # images + videos; videos group by sha
         items = [
             {"id": p.id, "content_sha256": p.content_sha256, "phash": p.phash,
              "width": p.width, "height": p.height}
