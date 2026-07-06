@@ -83,6 +83,30 @@ EN = {
     "settings.per_page_pins": "Pins per page",
     "settings.per_page_dupes": "Duplicate groups per page",
     "settings.restart_note": "restart to change",
+    "settings.cron_help_title": "Schedules use crontab syntax",
+    "settings.cron_help": (
+        "field order:  minute  hour  day-of-month  month  day-of-week\n"
+        "  *  = any     */n = every n     a-b = range     a,b = list\n"
+        "day-of-week: 0-6 (Sun = 0)\n"
+        "examples:  0 */6 * * * (every 6h)  ·  30 4 * * * (daily 04:30)  ·  "
+        "0 3 * * 1 (Mon 03:00)"
+    ),
+    "settings.cron_disabled_hint": "empty = disabled",
+    "settings.concurrency_help": (
+        "How many boards the worker downloads in parallel. This is a startup "
+        "setting: set PINCHIVE_MAX_CONCURRENCY in your .env and restart the worker."
+    ),
+    "settings.concurrency_env": "set in .env (PINCHIVE_MAX_CONCURRENCY) · restart to apply",
+    "settings.resync_desc": "Auto re-download boards to pick up newly added pins. Empty = off.",
+    "settings.refresh_desc": "Keep session cookies alive so private boards keep working. Empty = off.",
+    "settings.dedup_desc": "Recompute and store duplicate-image groups. Empty = off.",
+    "settings.timeout_desc": "Skip a single pin if it stalls with no data this long (seconds).",
+    "settings.dl_sleep_desc": "Delay between download requests to avoid rate limiting (seconds).",
+    "settings.per_page_boards_desc": "Boards shown per page.",
+    "settings.per_page_pins_desc": "Pins shown per page.",
+    "settings.per_page_dupes_desc": "Duplicate groups shown per page.",
+    "settings.playwright_desc": "When a session is truly dead, try a headless-browser "
+                               "re-login (needs the :playwright image).",
     "footer.tagline": "Self-hosted Pinterest board archiver · inspired by TubeArchivist",
     # hero
     "hero.badge": "Self-hosted",
@@ -262,6 +286,30 @@ KO = {
     "settings.per_page_pins": "페이지당 핀",
     "settings.per_page_dupes": "페이지당 중복 그룹",
     "settings.restart_note": "변경은 재시작 필요",
+    "settings.cron_help_title": "주기는 crontab 문법을 사용합니다",
+    "settings.cron_help": (
+        "필드 순서:  분  시  일  월  요일\n"
+        "  *  = 전체     */n = n 마다     a-b = 범위     a,b = 목록\n"
+        "요일: 0-6 (일요일 = 0)\n"
+        "예:  0 */6 * * * (6시간마다)  ·  30 4 * * * (매일 04:30)  ·  "
+        "0 3 * * 1 (월 03:00)"
+    ),
+    "settings.cron_disabled_hint": "빈 값 = 비활성",
+    "settings.concurrency_help": (
+        "워커가 동시에 다운로드하는 보드 수입니다. 시작 시 설정값이라 .env 의 "
+        "PINCHIVE_MAX_CONCURRENCY 를 바꾸고 워커를 재시작해야 적용됩니다."
+    ),
+    "settings.concurrency_env": ".env 에서 설정 (PINCHIVE_MAX_CONCURRENCY) · 재시작 필요",
+    "settings.resync_desc": "새로 추가된 핀을 가져오도록 보드를 자동 재다운로드. 빈 값 = 비활성.",
+    "settings.refresh_desc": "비공개 보드가 계속 동작하도록 세션 쿠키를 유지. 빈 값 = 비활성.",
+    "settings.dedup_desc": "중복 이미지 그룹을 다시 계산해 저장. 빈 값 = 비활성.",
+    "settings.timeout_desc": "한 핀이 이 시간(초) 동안 데이터 없이 멈추면 건너뜀.",
+    "settings.dl_sleep_desc": "Ratelimit 방지를 위한 다운로드 요청 간의 딜레이(초).",
+    "settings.per_page_boards_desc": "페이지당 표시할 보드 수.",
+    "settings.per_page_pins_desc": "페이지당 표시할 핀 수.",
+    "settings.per_page_dupes_desc": "페이지당 표시할 중복 그룹 수.",
+    "settings.playwright_desc": "세션이 완전히 죽으면 헤드리스 브라우저로 재로그인 시도"
+                               "(:playwright 이미지 필요).",
     "footer.tagline": "셀프호스팅 Pinterest 보드 아카이버 · TubeArchivist 에서 영감",
     "hero.badge": "셀프호스팅",
     "hero.title_1": "어떤 Pinterest",

@@ -24,60 +24,72 @@
     <p class="body-sm" style="color:var(--primary);margin-bottom:var(--s-md)">{{ t('settings.saved') }}</p>
     {% endif %}
 
+    <div class="card cron-help" style="margin-bottom:var(--s-md)">
+      <p class="body-sm body-strong" style="margin:0 0 var(--s-xs)">{{ t('settings.cron_help_title') }}</p>
+      <pre style="margin:0;font-family:var(--font-mono);font-size:12px;line-height:1.5;color:var(--muted);white-space:pre-wrap">{{ t('settings.cron_help') }}</pre>
+    </div>
+
     <div class="card">
       <form method="post" action="/settings/save" class="settings-grid">
         <label class="field">
           <span class="lbl">{{ t('settings.resync_interval') }}</span>
-          <input class="input" type="number" name="resync_every_hours" min="0" max="168"
-                 value="{{ eff.resync_every_hours }}">
-          <span class="hint muted">{{ t('settings.zero_disables') }}</span>
+          <input class="input" type="text" name="resync_cron" spellcheck="false"
+                 value="{{ eff.resync_cron }}" placeholder="30 4 * * *">
+          <span class="desc">{{ t('settings.resync_desc') }}</span>
         </label>
         <label class="field">
           <span class="lbl">{{ t('settings.refresh_interval') }}</span>
-          <input class="input" type="number" name="refresh_every_hours" min="0" max="168"
-                 value="{{ eff.refresh_every_hours }}">
-          <span class="hint muted">{{ t('settings.zero_disables') }}</span>
+          <input class="input" type="text" name="refresh_cron" spellcheck="false"
+                 value="{{ eff.refresh_cron }}" placeholder="0 */6 * * *">
+          <span class="desc">{{ t('settings.refresh_desc') }}</span>
         </label>
         <label class="field">
           <span class="lbl">{{ t('settings.dedup_interval') }}</span>
-          <input class="input" type="number" name="dedup_every_hours" min="0" max="168"
-                 value="{{ eff.dedup_every_hours }}">
-          <span class="hint muted">{{ t('settings.zero_disables') }}</span>
+          <input class="input" type="text" name="dedup_cron" spellcheck="false"
+                 value="{{ eff.dedup_cron }}" placeholder="45 */6 * * *">
+          <span class="desc">{{ t('settings.dedup_desc') }}</span>
         </label>
         <label class="field">
           <span class="lbl">{{ t('settings.timeout') }}</span>
           <input class="input" type="number" name="pin_stall_timeout" min="30" max="7200"
                  value="{{ eff.pin_stall_timeout }}">
-          <span class="hint muted">{{ t('settings.seconds_unit', n='') }}</span>
+          <span class="desc">{{ t('settings.timeout_desc') }}</span>
         </label>
         <label class="field">
           <span class="lbl">{{ t('settings.dl_sleep') }}</span>
           <input class="input" type="number" step="0.1" name="dl_sleep" min="0" max="30"
                  value="{{ eff.dl_sleep }}">
+          <span class="desc">{{ t('settings.dl_sleep_desc') }}</span>
         </label>
         <label class="field">
           <span class="lbl">{{ t('settings.per_page_boards') }}</span>
           <input class="input" type="number" name="per_page_boards" min="1" max="200"
                  value="{{ eff.per_page_boards }}">
+          <span class="desc">{{ t('settings.per_page_boards_desc') }}</span>
         </label>
         <label class="field">
           <span class="lbl">{{ t('settings.per_page_pins') }}</span>
           <input class="input" type="number" name="per_page_pins" min="1" max="500"
                  value="{{ eff.per_page_pins }}">
+          <span class="desc">{{ t('settings.per_page_pins_desc') }}</span>
         </label>
         <label class="field">
           <span class="lbl">{{ t('settings.per_page_dupes') }}</span>
           <input class="input" type="number" name="per_page_dupes" min="1" max="200"
                  value="{{ eff.per_page_dupes }}">
+          <span class="desc">{{ t('settings.per_page_dupes_desc') }}</span>
         </label>
-        <label class="field" style="justify-content:flex-end">
+        <div class="field">
           <span class="lbl">{{ t('settings.playwright') }}</span>
-          <label class="autosync" style="height:40px">
+          <label class="switch">
             <input type="checkbox" name="use_playwright_fallback" value="true"
                    {{ 'checked' if eff.use_playwright_fallback }}>
-            <span>{{ t('settings.enabled') if eff.use_playwright_fallback else t('settings.disabled') }}</span>
+            <span class="track"><span class="knob"></span></span>
+            <span class="on">{{ t('settings.enabled') }}</span>
+            <span class="off">{{ t('settings.disabled') }}</span>
           </label>
-        </label>
+          <span class="desc">{{ t('settings.playwright_desc') }}</span>
+        </div>
 
         <div class="settings-actions">
           <button class="btn btn-primary" type="submit">{{ t('settings.save') }}</button>
@@ -87,8 +99,10 @@
       <hr class="hr" style="margin:var(--s-lg) 0">
       <table class="cred">
         <tbody>
-          <tr><td>{{ t('settings.concurrency') }}</td><td class="body-strong">
-            {{ cfg.max_concurrency }} <span class="body-sm muted">· {{ t('settings.restart_note') }}</span>
+          <tr><td>{{ t('settings.concurrency') }}
+            <span class="help-q" tabindex="0" title="{{ t('settings.concurrency_help') }}">?</span>
+          </td><td class="body-strong">
+            {{ cfg.max_concurrency }} <span class="body-sm muted">· {{ t('settings.concurrency_env') }}</span>
           </td></tr>
           <tr><td>{{ t('settings.queue') }}</td><td>
             <span class="badge"><span class="badge-dot {{ 'dot-emerald' if queue_up else 'dot-rose' }}"></span>{{ t('settings.on') if queue_up else t('settings.off') }}</span>
