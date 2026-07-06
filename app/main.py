@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from contextlib import asynccontextmanager
+from functools import lru_cache
 from math import ceil
 from pathlib import Path
 from urllib.parse import urlencode
@@ -105,6 +107,21 @@ templates.env.globals["t"] = i18n.t
 templates.env.globals["get_locale"] = i18n.get_locale
 templates.env.globals["SUPPORTED_LANGS"] = i18n.SUPPORTED
 templates.env.globals["LANG_NAMES"] = i18n.LANG_NAMES
+
+
+@lru_cache(maxsize=64)
+def _asset_url(path: str) -> str:
+    """Cache-busting static URL: append a short content hash so browsers refetch
+    a changed asset (StaticFiles' heuristic cache otherwise serves it stale)."""
+    rel = path.lstrip("/")
+    try:
+        h = hashlib.md5((BASE_DIR / "static" / rel).read_bytes()).hexdigest()[:8]
+    except OSError:
+        return f"/static/{rel}"
+    return f"/static/{rel}?v={h}"
+
+
+templates.env.globals["asset"] = _asset_url
 
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 # Downloaded media, served read-only from the data volume.

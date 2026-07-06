@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Pinchive{% endblock %}</title>
   <link rel="preconnect" href="/static">
-  <link rel="stylesheet" href="/static/css/app.css">
+  <link rel="stylesheet" href="{{ asset('css/app.css') }}">
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
-  <script src="/static/js/htmx.min.js" defer></script>
+  <script src="{{ asset('js/htmx.min.js') }}" defer></script>
   <!-- idiomorph after htmx (defer keeps order): enables hx-swap="morph". -->
-  <script src="/static/js/idiomorph-ext.min.js" defer></script>
+  <script src="{{ asset('js/idiomorph-ext.min.js') }}" defer></script>
 </head>
 <body>
   <nav class="top-nav">
@@ -17,6 +17,7 @@
       <a class="brand" href="/">
         <span class="dot"></span> Pinchive
       </a>
+      <input type="checkbox" id="nav-toggle" class="nav-toggle">
       <div class="nav-links">
         <a class="nav-link" href="/">{{ t('nav.boards') }}</a>
         <a class="nav-link" href="/duplicates">{{ t('nav.duplicates') }}</a>
@@ -31,6 +32,9 @@
         </span>
         <a class="btn btn-primary btn-sm" href="/#add">{{ t('nav.add_board') }}</a>
       </div>
+      <label for="nav-toggle" class="nav-burger" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </label>
     </div>
   </nav>
 
@@ -47,5 +51,53 @@
       </div>
     </div>
   </footer>
+
+  <!-- Media lightbox: click a .zoomable image/video to open. In the modal a
+       video toggles play/pause on click; an image (or the backdrop, the X
+       button, or Esc) closes it. Delegated so it survives HTMX swaps. -->
+  <div id="media-modal" class="media-modal" hidden>
+    <button type="button" class="media-modal-close" aria-label="Close">&times;</button>
+    <div class="media-modal-content"></div>
+  </div>
+  <script>
+    (function () {
+      var modal = document.getElementById('media-modal');
+      if (!modal) return;
+      var content = modal.querySelector('.media-modal-content');
+      function close() { modal.hidden = true; content.innerHTML = ''; }  // stops video/audio
+      function open(el) {
+        var node;
+        if (el.tagName === 'VIDEO') {
+          node = document.createElement('video');
+          node.src = el.currentSrc || el.getAttribute('src');
+          node.playsInline = true;
+          content.innerHTML = '';
+          content.appendChild(node);
+          modal.hidden = false;
+          node.play().catch(function () {});  // sound OK: opened by a click
+        } else {
+          node = document.createElement('img');
+          node.src = el.currentSrc || el.src;
+          content.innerHTML = '';
+          content.appendChild(node);
+          modal.hidden = false;
+        }
+      }
+      document.addEventListener('click', function (e) {
+        var t = e.target;
+        if (modal.hidden) {
+          var z = t.closest ? t.closest('.zoomable') : null;
+          if (z) { e.preventDefault(); open(z); }
+          return;
+        }
+        // Modal open: a video toggles play/pause; anything else closes.
+        if (t.tagName === 'VIDEO') { t.paused ? t.play() : t.pause(); }
+        else { close(); }
+      });
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !modal.hidden) close();
+      });
+    })();
+  </script>
 </body>
 </html>

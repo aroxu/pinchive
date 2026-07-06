@@ -112,17 +112,14 @@
           </label>
           <div class="pin">
             {% if pin.media_type == "video" %}
-              <!-- preload=metadata + #t=0.1 makes the browser fetch just enough to
-                   paint the first frame as a poster (otherwise the box is black
-                   until play). Range requests are served by StaticFiles. -->
-              <video src="/media/{{ pin.rel_path }}#t=0.1" controls
-                     preload="metadata" playsinline></video>
+              <!-- Autoplay muted+looped in the grid (like a feed); click opens the
+                   lightbox where it plays with sound. Range requests via StaticFiles. -->
+              <video class="zoomable" src="/media/{{ pin.rel_path }}"
+                     autoplay muted loop playsinline preload="metadata"></video>
               <span class="vtag">{{ t('media.videos') }}</span>
             {% else %}
-              <a href="/media/{{ pin.rel_path }}" target="_blank" rel="noopener">
-                <img loading="lazy" src="/media/{{ pin.rel_path }}"
-                     alt="{{ pin.title or pin.pinterest_id or pin.filename }}">
-              </a>
+              <img class="zoomable" loading="lazy" src="/media/{{ pin.rel_path }}"
+                   alt="{{ pin.title or pin.pinterest_id or pin.filename }}">
             {% endif %}
           </div>
           <div class="tag-row" style="margin-top:6px">
