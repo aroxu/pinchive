@@ -516,45 +516,35 @@ async def _startup(ctx: dict) -> None:
     await _resume_interrupted(ctx)
 
 
-# The cron intervals are runtime-editable (app.appsettings), so the crons fire
-# hourly and gate on the effective interval + a stored last-run timestamp. That
-# makes an interval change on the Settings page take effect without a restart.
-async def _cron_refresh(ctx: dict) -> dict:
-    interval = appsettings.get("refresh_every_hours")
-    if not interval or interval <= 0:
-        return {"skipped": "disabled"}
-    if not appsettings.due("_last_refresh_at", interval):
-        return {"skipped": "not due"}
-    appsettings.set_raw("_last_refresh_at", _now().isoformat())
-    return await refresh_all_credentials(ctx)
+# Each schedule is a runtime-editable crontab expression (app.appsettings). A
+# single job ticks every minute and runs whichever schedules are due right now,
+# so editing an expression on the Settings page takes effect without a restart.
+_CRON_SCHEDULES = (
+    ("_last_refresh_at", "refresh_cron", refresh_all_credentials),
+    ("_last_resync_at", "resync_cron", resync_all_boards),
+    ("_last_dedup_at", "dedup_cron", recompute_duplicates),
+)
 
 
-async def _cron_resync(ctx: dict) -> dict:
-    interval = appsettings.get("resync_every_hours")
-    if not interval or interval <= 0:
-        return {"skipped": "disabled"}
-    if not appsettings.due("_last_resync_at", interval):
-        return {"skipped": "not due"}
-    appsettings.set_raw("_last_resync_at", _now().isoformat())
-    return await resync_all_boards(ctx)
-
-
-async def _cron_dedup(ctx: dict) -> dict:
-    interval = appsettings.get("dedup_every_hours")
-    if not interval or interval <= 0:
-        return {"skipped": "disabled"}
-    if not appsettings.due("_last_dedup_at", interval):
-        return {"skipped": "not due"}
-    appsettings.set_raw("_last_dedup_at", _now().isoformat())
-    return await recompute_duplicates(ctx)
+async def _cron_dispatch(ctx: dict) -> dict:
+    now = _now()
+    ran: dict = {}
+    for last_key, cron_key, runner in _CRON_SCHEDULES:
+        expr = appsettings.get(cron_key)
+        if not appsettings.cron_due(last_key, expr, now):
+            continue
+        appsettings.set_raw(last_key, now.isoformat())
+        try:
+            ran[cron_key] = await runner(ctx)
+        except Exception as exc:  # noqa: BLE001 — one job must not stop the others
+            logger.warning("cron %s failed: %s", cron_key, exc)
+            ran[cron_key] = {"error": str(exc)}
+    return ran or {"skipped": "nothing due"}
 
 
 def _build_cron_jobs() -> list:
-    return [
-        cron(_cron_refresh, minute=0),   # hourly; gated by refresh interval
-        cron(_cron_resync, minute=30),   # hourly; gated by resync interval
-        cron(_cron_dedup, minute=45),    # hourly; gated by dedup interval
-    ]
+    # Fire every minute (at :00s); _cron_dispatch decides what's due.
+    return [cron(_cron_dispatch, second=0)]
 
 
 class WorkerSettings:

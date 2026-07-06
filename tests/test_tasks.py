@@ -36,17 +36,6 @@ def test_same_url_boards_get_distinct_folders():
     assert board_folder(slug, 1).endswith("-1")
 
 
-# --- config schedule ---
-def test_resync_hours_enabled_and_disabled():
-    s = get_settings()
-    s.resync_every_hours = 12
-    assert s.resync_hours() == {0, 12}
-    s.resync_every_hours = 0
-    assert s.resync_hours() == set()  # disabled
-    s.resync_every_hours = 24  # restore default
-    assert s.resync_hours() == {0}
-
-
 # --- resync cron ---
 class _FakePool:
     def __init__(self):
@@ -94,20 +83,32 @@ def test_no_board_timeout():
     assert WorkerSettings.job_timeout >= 24 * 3600
 
 
-def test_cron_resync_gates_on_interval():
+def test_cron_dispatch_runs_due_schedules():
+    from datetime import datetime, timezone
+
     from app import appsettings
-    from app.tasks import _cron_resync
+    from app.tasks import _cron_dispatch
 
-    appsettings.save({"resync_every_hours": "0"})        # disabled
-    r = asyncio.run(_cron_resync({"redis": _FakePool()}))
-    assert r.get("skipped") == "disabled"
+    _mk(BoardStatus.done, True)  # a resyncable board
+    now = datetime.now(timezone.utc)
+    # a cron matching this exact minute -> resync should run; disable the others
+    due_expr = f"{now.minute} {now.hour} * * *"
+    appsettings.save({"resync_cron": due_expr, "refresh_cron": "", "dedup_cron": ""})
+    # clear any prior last-run so it's due
+    appsettings.set_raw("_last_resync_at", "")
+    r = asyncio.run(_cron_dispatch({"redis": _FakePool()}))
+    assert "resync_cron" in r                       # fired
+    r2 = asyncio.run(_cron_dispatch({"redis": _FakePool()}))  # same minute -> guard
+    assert r2.get("skipped") == "nothing due"
 
-    appsettings.save({"resync_every_hours": "6"})        # enabled, never run -> due
-    r = asyncio.run(_cron_resync({"redis": _FakePool()}))
-    assert "skipped" not in r                            # ran (updated last-run)
 
-    r = asyncio.run(_cron_resync({"redis": _FakePool()}))  # just ran -> not due
-    assert r.get("skipped") == "not due"
+def test_cron_dispatch_nothing_due_when_disabled():
+    from app import appsettings
+    from app.tasks import _cron_dispatch
+
+    appsettings.save({"resync_cron": "", "refresh_cron": "", "dedup_cron": ""})
+    r = asyncio.run(_cron_dispatch({"redis": _FakePool()}))
+    assert r.get("skipped") == "nothing due"
 
 
 def test_resume_interrupted_reenqueues_stuck_boards():

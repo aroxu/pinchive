@@ -29,13 +29,13 @@ class Settings(BaseSettings):
     # on to the next pin. Default 600s (10 min).
     pin_stall_timeout: int = Field(default=600, ge=30)
 
-    # Credential keep-alive cron. The job re-hits Pinterest and persists the
-    # rotated session cookie so a registered credential stays alive on its own.
-    # refresh_every_hours > 0 runs every N hours (e.g. 6 -> 00,06,12,18);
-    # set it to 0 to run once a day at refresh_hour instead.
-    refresh_every_hours: int = Field(default=6, ge=0, le=24)
-    refresh_hour: int = Field(default=4, ge=0, le=23)
-    refresh_minute: int = Field(default=0, ge=0, le=59)
+    # Schedules are standard 5-field crontab expressions
+    # (minute hour day-of-month month day-of-week); an empty string disables the
+    # job. The worker evaluates them every minute (app.tasks._cron_dispatch).
+    #
+    # Credential keep-alive: re-hit Pinterest and persist the rotated session
+    # cookie so a registered credential stays alive. Default: every 6 hours.
+    refresh_cron: str = Field(default="0 */6 * * *")
 
     # Optional Playwright re-login fallback: when a session is genuinely dead
     # (server-side logout), try a headless browser login to mint fresh cookies.
@@ -45,31 +45,17 @@ class Settings(BaseSettings):
 
     # Automatic board re-sync: periodically re-download boards to pick up new
     # pins (cheap — the per-board archive means only new pins are fetched).
-    # Runs every N hours; 0 disables the cron entirely. Boards can opt out
-    # individually (Board.auto_resync).
-    resync_every_hours: int = Field(default=24, ge=0, le=24)
-    resync_minute: int = Field(default=30, ge=0, le=59)
+    # Boards can opt out individually (Board.auto_resync). Default: daily 04:30.
+    resync_cron: str = Field(default="30 4 * * *")
 
-    # How often the worker recomputes + stores duplicate groups. 0 disables the
-    # periodic pass (the Rescan button still works). Default 6h.
-    dedup_every_hours: int = Field(default=6, ge=0, le=168)
+    # How often the worker recomputes + stores duplicate groups (the manual
+    # Rescan button still works regardless). Default: every 6 hours at :45.
+    dedup_cron: str = Field(default="45 */6 * * *")
 
     # UI page sizes.
     per_page_boards: int = Field(default=24, ge=1, le=200)
     per_page_pins: int = Field(default=60, ge=1, le=500)
     per_page_dupes: int = Field(default=20, ge=1, le=200)
-
-    def refresh_hours(self) -> set[int]:
-        """The set of hours the keep-alive cron fires at."""
-        if self.refresh_every_hours and self.refresh_every_hours > 0:
-            return set(range(0, 24, self.refresh_every_hours))
-        return {self.refresh_hour}
-
-    def resync_hours(self) -> set[int]:
-        """Hours the board auto-resync cron fires at (empty = disabled)."""
-        if self.resync_every_hours and self.resync_every_hours > 0:
-            return set(range(0, 24, self.resync_every_hours))
-        return set()
 
     # ---- derived paths ----
     @property
