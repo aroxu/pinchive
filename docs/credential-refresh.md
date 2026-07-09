@@ -6,8 +6,8 @@ opt-in fallback for when a session is genuinely dead.
 
 ## Layer 1 — keep-alive cookie rotation (default, on)
 
-Every `PINCHIVE_REFRESH_EVERY_HOURS` (default `6` → runs at 00/06/12/18) the
-worker, for each stored credential:
+On the `PINCHIVE_REFRESH_CRON` schedule (default `0 */6 * * *`) the worker, for
+each stored credential:
 
 1. makes an authenticated request to Pinterest with the stored cookies,
 2. lets Pinterest rotate `_pinterest_sess` via `Set-Cookie` (sliding session),
@@ -93,7 +93,7 @@ export PINCHIVE_USE_PLAYWRIGHT_FALLBACK=true   # PowerShell: $env:PINCHIVE_USE_P
 
 | Switch | Phase | Effect | Default |
 |---|---|---|---|
-| `PINCHIVE_REFRESH_EVERY_HOURS` | run | keep-alive cadence (layer 1) | `6` |
+| `PINCHIVE_REFRESH_CRON` | run | keep-alive schedule (layer 1) | `0 */6 * * *` |
 | `INSTALL_PLAYWRIGHT` | build | put chromium + `refresh` extra in the image | `false` |
 | `PINCHIVE_USE_PLAYWRIGHT_FALLBACK` | run | attempt re-login on a dead session | `false` |
 

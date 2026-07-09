@@ -41,9 +41,28 @@ Two published variants (built from the one Dockerfile via
 | `ghcr.io/aroxu/pinchive:latest` | slim (no browser) | ~1 GB | default |
 | `ghcr.io/aroxu/pinchive:playwright` | + chromium | ~1.4 GB | auto re-login fallback |
 
-Pull instead of building by setting `PINCHIVE_IMAGE` in `.env`, then
-`docker compose pull && docker compose up -d`. Build both locally with
-`docker buildx bake`.
+Version tags (`:v0.1.0`, `:v0.1.0-playwright`) are published from `v*` git tags.
+
+### Run from a published image (no checkout)
+
+```bash
+mkdir pinchive && cd pinchive
+curl -fsSLO https://raw.githubusercontent.com/aroxu/pinchive/main/compose.prod.yaml
+docker compose -f compose.prod.yaml up -d      # open http://localhost:8000
+```
+
+Pin a version or variant with `PINCHIVE_TAG` (`v0.1.0`, `playwright`,
+`v0.1.0-playwright`); update with `docker compose -f compose.prod.yaml pull && … up -d`.
+From a clone you can instead set `PINCHIVE_IMAGE` in `.env` and
+`docker compose pull && docker compose up -d`, or build both variants locally
+with `docker buildx bake`.
+
+> **Make the images public** (GHCR packages start private). After the first
+> publish, once: `github.com/users/aroxu/packages` → *pinchive* → *Package
+> settings* → *Change visibility → Public*, or
+> ```bash
+> gh api -X PATCH /user/packages/container/pinchive/visibility -f visibility=public
+> ```
 
 ## Private boards
 
@@ -54,8 +73,8 @@ Pull instead of building by setting `PINCHIVE_IMAGE` in `.env`, then
 
 Only `_pinterest_sess` is strictly required.
 
-**Keep-alive rotation.** Every `PINCHIVE_REFRESH_EVERY_HOURS` (default 6) the
-worker makes an authenticated request per credential and **persists the rotated
+**Keep-alive rotation.** On the `PINCHIVE_REFRESH_CRON` schedule (default every
+6h) the worker makes an authenticated request per credential and **persists the rotated
 `_pinterest_sess` back to disk** — so a registered session stays alive on its
 own as long as Pinterest keeps sliding it, no re-pasting. Liveness is judged by
 the page's `is_authenticated` flag; a session that has genuinely been logged out
@@ -94,8 +113,8 @@ Full setup (login profile, local install, switch matrix):
   the extra files from disk. Detection is non-destructive until you confirm.
 - **Pagination.** Board list, pin grids, and the Duplicates page paginate
   (sizes configurable via `PINCHIVE_PER_PAGE_*`).
-- **Automatic re-sync.** A cron re-downloads boards every
-  `PINCHIVE_RESYNC_EVERY_HOURS` (default 24; `0` disables) to pull new pins —
+- **Automatic re-sync.** A cron re-downloads boards on
+  `PINCHIVE_RESYNC_CRON` (default daily 04:30; empty disables) to pull new pins —
   cheap, since the per-board archive only fetches new ones. Toggle **auto-sync**
   per board from its card to opt individual boards out.
 - **Multilingual UI** (English / 한국어). Auto-detects from `Accept-Language`;
@@ -122,8 +141,8 @@ arq app.tasks.WorkerSettings                        # separate terminal
 
 All env vars are `PINCHIVE_*` — see [.env.example](.env.example).
 Key ones: `MAX_CONCURRENCY` (parallel downloads), `DL_SLEEP` (politeness delay),
-`REFRESH_EVERY_HOURS` (session keep-alive cron), `RESYNC_EVERY_HOURS` (board
-auto-resync cron; `0` disables), `PER_PAGE_BOARDS`/`PER_PAGE_PINS`/`PER_PAGE_DUPES`.
+`REFRESH_CRON` / `RESYNC_CRON` / `DEDUP_CRON` (crontab schedules; empty disables),
+`PER_PAGE_BOARDS`/`PER_PAGE_PINS`/`PER_PAGE_DUPES`.
 
 ## Layout
 

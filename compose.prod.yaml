@@ -1,0 +1,62 @@
+# Production stack — runs the published GHCR image, no source checkout or build.
+#
+#   mkdir pinchive && cd pinchive
+#   curl -fsSLO https://raw.githubusercontent.com/aroxu/pinchive/main/compose.prod.yaml
+#   docker compose -f compose.prod.yaml up -d          # open http://localhost:8000
+#
+# Pin a version:            PINCHIVE_TAG=v0.1.0 docker compose -f compose.prod.yaml up -d
+# Browser re-login variant: PINCHIVE_TAG=playwright  (or v0.1.0-playwright)
+# Update:                   docker compose -f compose.prod.yaml pull && ... up -d
+#
+# Data (db, boards, cookies) persists in ./data. Put PINCHIVE_* overrides in .env.
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "60", "1", "--appendonly", "no"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  web:
+    image: ghcr.io/aroxu/pinchive:${PINCHIVE_TAG:-latest}
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      PINCHIVE_REDIS_URL: redis://redis:6379
+      PINCHIVE_DATA_DIR: /data
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  worker:
+    image: ghcr.io/aroxu/pinchive:${PINCHIVE_TAG:-latest}
+    restart: unless-stopped
+    command: ["arq", "app.tasks.WorkerSettings"]
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      PINCHIVE_REDIS_URL: redis://redis:6379
+      PINCHIVE_DATA_DIR: /data
+    volumes:
+      - ./data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+      web:
+        condition: service_started
+
+volumes:
+  redis-data:

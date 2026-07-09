@@ -21,6 +21,11 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PINCHIVE_DATA_DIR=/data
 
+# Links the GHCR package to the repo (README + provenance on the package page).
+LABEL org.opencontainers.image.source="https://github.com/aroxu/pinchive" \
+      org.opencontainers.image.description="Self-hosted Pinterest board archiver" \
+      org.opencontainers.image.licenses="MIT"
+
 WORKDIR /app
 
 # Install deps first for layer caching.

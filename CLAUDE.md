@@ -75,10 +75,10 @@ Defined in `app/config.py`. Many are also **runtime-editable** from the Settings
 | `MAX_CONCURRENCY` | 2 | worker parallelism |
 | `DL_SLEEP` | 0.8 | polite delay between requests (editable) |
 | `PIN_STALL_TIMEOUT` | 600 | per-pin no-data abort in seconds; **no overall board timeout** (editable) |
-| `REFRESH_EVERY_HOURS` | 6 | cookie keep-alive cron cadence (0 = once daily at REFRESH_HOUR) (editable) |
+| `REFRESH_CRON` | `0 */6 * * *` | cookie keep-alive schedule (crontab; empty disables) (editable) |
 | `USE_PLAYWRIGHT_FALLBACK` | false | try headless re-login when a session is truly dead (editable) |
-| `RESYNC_EVERY_HOURS` | 24 | board auto-resync cadence; 0 disables (editable) |
-| `DEDUP_EVERY_HOURS` | 6 | periodic duplicate recompute; 0 disables (editable) |
+| `RESYNC_CRON` | `30 4 * * *` | board auto-resync schedule (crontab; empty disables) (editable) |
+| `DEDUP_CRON` | `45 */6 * * *` | duplicate recompute schedule (crontab; empty disables) (editable) |
 | `PER_PAGE_BOARDS/PINS/DUPES` | 24/60/20 | UI page sizes (editable) |
 
 ## Key behaviors
