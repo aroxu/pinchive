@@ -74,8 +74,6 @@ class Credential(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(index=True)
     status: CredentialStatus = Field(default=CredentialStatus.unchecked)
-    # Pinterest username, informational only (auth is cookie-based).
-    account: Optional[str] = Field(default=None)
     note: Optional[str] = Field(default=None)
     last_checked_at: Optional[datetime] = Field(default=None)
     last_error: Optional[str] = Field(default=None)

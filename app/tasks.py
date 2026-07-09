@@ -259,6 +259,10 @@ def _sync_partial_pins(board_id: int, folder: str, dest) -> None:
                     board_id=board_id, rel_path=rel,
                     filename=m.filename, media_type=m.media_type,
                 ))
+        # Keep the on-disk pin count live so the card/detail reflect it mid-download.
+        b = s.get(Board, board_id)
+        if b is not None:
+            b.pin_count = len(items)
 
 
 def _last_error_line(log_tail: str | None) -> str | None:

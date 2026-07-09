@@ -590,3 +590,9 @@ img.zoomable, video.zoomable { cursor: zoom-in; }
 
 /* ---- hero split ------------------------------------------------------- */
 .hero-split { display: grid; grid-template-columns: 7fr 5fr; gap: var(--s-xxl); align-items: center; }
+/* credentials: match the form card height to the export panel on its left */
+.creds-split { align-items: stretch; }
+.creds-split > .card { display: flex; }
+.creds-split > .card > form { display: flex; flex-direction: column; flex: 1; width: 100%; }
+.creds-split .field-grow { display: flex; flex-direction: column; flex: 1; }
+.creds-split .field-grow .textarea { flex: 1; }

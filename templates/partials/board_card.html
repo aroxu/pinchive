@@ -21,19 +21,9 @@
 
   <div class="counts">
     <div class="count-item">
-      <span class="n">{{ board.downloaded_count }}</span>
-      <span class="k">{{ t('count.downloaded') }}</span>
+      <span class="n">{{ board.pin_count }}</span>
+      <span class="k">{{ t('stat.pins_on_disk') }}</span>
     </div>
-    <div class="count-item">
-      <span class="n">{{ board.skipped_count }}</span>
-      <span class="k">{{ t('count.skipped') }}</span>
-    </div>
-    {% if board.error_count %}
-    <div class="count-item">
-      <span class="n" style="color:var(--rose)">{{ board.error_count }}</span>
-      <span class="k">{{ t('count.errors') }}</span>
-    </div>
-    {% endif %}
   </div>
 
   {% if board.last_error %}

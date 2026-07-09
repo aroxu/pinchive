@@ -500,11 +500,10 @@ async def delete_board(
 async def add_credential(
     request: Request,
     name: str = Form(...),
-    account: str = Form(default=""),
     cookies: str = Form(...),
     session: Session = Depends(get_session),
 ):
-    cred = Credential(name=name.strip() or "unnamed", account=account.strip() or None)
+    cred = Credential(name=name.strip() or "unnamed")
     session.add(cred)
     session.commit()
     session.refresh(cred)
