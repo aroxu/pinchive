@@ -61,7 +61,7 @@
     </div>
     <p class="modal-sub">{{ t('hero.subtitle') }}</p>
     <form method="post" action="/boards" hx-post="/boards" hx-target="#board-list" hx-swap="afterbegin"
-          hx-on::after-request="if(event.detail.successful){this.reset();document.getElementById('add-toggle').checked=false}">
+          hx-on::after-request="if(event.detail.successful){this.reset();document.getElementById('add-toggle').checked=false;var e=document.querySelector('.empty-card');if(e)e.remove()}">
       <div class="fld-lbl">{{ t('form.board_url') }}</div>
       <input class="input" name="url" required placeholder="https://www.pinterest.com/user/board/">
 
