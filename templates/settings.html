@@ -11,68 +11,84 @@
   <!-- automation -->
   <section class="set-card">
     <div class="set-head">
-      <h2>{{ t('settings.automation') }} · crontab</h2>
+      <h2>{{ t('settings.automation') }}</h2>
       <form method="post" action="/settings/sync-all">
         <button class="btn btn-primary btn-sm" type="submit">{{ t('settings.sync_all') }}</button>
       </form>
     </div>
-    <p class="cron-legend">{{ t('settings.cron_help') }}</p>
 
     <form method="post" action="/settings/save">
-      <div class="set-grid">
-        <label class="sf">
-          <span class="sf-lbl">{{ t('settings.resync_interval') }}</span>
-          <input class="input mono" type="text" name="resync_cron" value="{{ eff.resync_cron }}" placeholder="30 4 * * *" spellcheck="false">
-          <span class="sf-desc">{{ t('settings.resync_desc') }}</span>
-        </label>
-        <label class="sf">
-          <span class="sf-lbl">{{ t('settings.refresh_interval') }}</span>
-          <input class="input mono" type="text" name="refresh_cron" value="{{ eff.refresh_cron }}" placeholder="0 */6 * * *" spellcheck="false">
-          <span class="sf-desc">{{ t('settings.refresh_desc') }}</span>
-        </label>
-        <label class="sf">
-          <span class="sf-lbl">{{ t('settings.dedup_interval') }}</span>
-          <input class="input mono" type="text" name="dedup_cron" value="{{ eff.dedup_cron }}" placeholder="45 */6 * * *" spellcheck="false">
-          <span class="sf-desc">{{ t('settings.dedup_desc') }}</span>
-        </label>
-        <label class="sf">
-          <span class="sf-lbl">{{ t('settings.timeout') }}</span>
-          <input class="input" type="number" name="pin_stall_timeout" min="30" max="7200" value="{{ eff.pin_stall_timeout }}">
-          <span class="sf-desc">{{ t('settings.timeout_desc') }}</span>
-        </label>
-        <label class="sf">
-          <span class="sf-lbl">{{ t('settings.dl_sleep') }}</span>
-          <input class="input" type="number" step="0.1" name="dl_sleep" min="0" max="30" value="{{ eff.dl_sleep }}">
-          <span class="sf-desc">{{ t('settings.dl_sleep_desc') }}</span>
-        </label>
-        <label class="sf">
-          <span class="sf-lbl">{{ t('settings.per_page_boards') }}</span>
-          <input class="input" type="number" name="per_page_boards" min="1" max="200" value="{{ eff.per_page_boards }}">
-          <span class="sf-desc">{{ t('settings.per_page_boards_desc') }}</span>
-        </label>
-        <label class="sf">
-          <span class="sf-lbl">{{ t('settings.per_page_pins') }}</span>
-          <input class="input" type="number" name="per_page_pins" min="1" max="500" value="{{ eff.per_page_pins }}">
-          <span class="sf-desc">{{ t('settings.per_page_pins_desc') }}</span>
-        </label>
-        <label class="sf">
-          <span class="sf-lbl">{{ t('settings.per_page_dupes') }}</span>
-          <input class="input" type="number" name="per_page_dupes" min="1" max="200" value="{{ eff.per_page_dupes }}">
-          <span class="sf-desc">{{ t('settings.per_page_dupes_desc') }}</span>
-        </label>
+      <div class="set-group">
+        <div class="set-sub">
+          <span class="set-sub-t">{{ t('settings.schedules') }}</span>
+          <span class="set-sub-badge">crontab</span>
+        </div>
+        <pre class="cron-legend">{{ t('settings.cron_help') }}</pre>
+        <div class="set-grid cols-3">
+          <label class="sf">
+            <span class="sf-lbl">{{ t('settings.resync_interval') }}</span>
+            <input class="input mono" type="text" name="resync_cron" value="{{ eff.resync_cron }}" placeholder="30 4 * * *" spellcheck="false">
+            <span class="sf-desc">{{ t('settings.resync_desc') }}</span>
+          </label>
+          <label class="sf">
+            <span class="sf-lbl">{{ t('settings.refresh_interval') }}</span>
+            <input class="input mono" type="text" name="refresh_cron" value="{{ eff.refresh_cron }}" placeholder="0 */6 * * *" spellcheck="false">
+            <span class="sf-desc">{{ t('settings.refresh_desc') }}</span>
+          </label>
+          <label class="sf">
+            <span class="sf-lbl">{{ t('settings.dedup_interval') }}</span>
+            <input class="input mono" type="text" name="dedup_cron" value="{{ eff.dedup_cron }}" placeholder="45 */6 * * *" spellcheck="false">
+            <span class="sf-desc">{{ t('settings.dedup_desc') }}</span>
+          </label>
+        </div>
       </div>
 
-      <hr class="set-hr">
-
-      <div class="set-row">
-        <div>
-          <div class="set-row-t">{{ t('settings.playwright') }}</div>
-          <div class="set-row-d">{{ t('settings.playwright_desc') }}</div>
+      <div class="set-group">
+        <div class="set-sub"><span class="set-sub-t">{{ t('settings.g_download') }}</span></div>
+        <div class="set-grid cols-2">
+          <label class="sf">
+            <span class="sf-lbl">{{ t('settings.timeout') }}</span>
+            <input class="input" type="number" name="pin_stall_timeout" min="30" max="7200" value="{{ eff.pin_stall_timeout }}">
+            <span class="sf-desc">{{ t('settings.timeout_desc') }}</span>
+          </label>
+          <label class="sf">
+            <span class="sf-lbl">{{ t('settings.dl_sleep') }}</span>
+            <input class="input" type="number" step="0.1" name="dl_sleep" min="0" max="30" value="{{ eff.dl_sleep }}">
+            <span class="sf-desc">{{ t('settings.dl_sleep_desc') }}</span>
+          </label>
         </div>
-        <label class="switch">
-          <input type="checkbox" name="use_playwright_fallback" value="true" {{ 'checked' if eff.use_playwright_fallback }}>
-          <span class="track"><span class="knob"></span></span>
-        </label>
+      </div>
+
+      <div class="set-group">
+        <div class="set-sub"><span class="set-sub-t">{{ t('settings.g_display') }}</span></div>
+        <div class="set-grid cols-3">
+          <label class="sf">
+            <span class="sf-lbl">{{ t('settings.per_page_boards') }}</span>
+            <input class="input" type="number" name="per_page_boards" min="1" max="200" value="{{ eff.per_page_boards }}">
+          </label>
+          <label class="sf">
+            <span class="sf-lbl">{{ t('settings.per_page_pins') }}</span>
+            <input class="input" type="number" name="per_page_pins" min="1" max="500" value="{{ eff.per_page_pins }}">
+          </label>
+          <label class="sf">
+            <span class="sf-lbl">{{ t('settings.per_page_dupes') }}</span>
+            <input class="input" type="number" name="per_page_dupes" min="1" max="200" value="{{ eff.per_page_dupes }}">
+          </label>
+        </div>
+      </div>
+
+      <div class="set-group">
+        <div class="set-sub"><span class="set-sub-t">{{ t('settings.g_fallback') }}</span></div>
+        <div class="set-row">
+          <div>
+            <div class="set-row-t">{{ t('settings.playwright') }}</div>
+            <div class="set-row-d">{{ t('settings.playwright_desc') }}</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" name="use_playwright_fallback" value="true" {{ 'checked' if eff.use_playwright_fallback }}>
+            <span class="track"><span class="knob"></span></span>
+          </label>
+        </div>
       </div>
 
       <div class="save-row"><button class="btn btn-primary" type="submit">{{ t('settings.save') }}</button></div>

@@ -851,3 +851,17 @@ img.zoomable, video.zoomable { cursor: zoom-in; }
   .cr-actions { justify-content: flex-start; }
   .detail-head, .dupes-actions { }
 }
+
+/* ===== settings polish — grouped sections ============================ */
+.set-group { margin-bottom: 26px; }
+.set-group + .save-row, .set-group:last-of-type { margin-bottom: 0; }
+.set-sub { display: flex; align-items: center; gap: 9px; margin: 0 0 15px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.set-sub-t { font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--tx2); }
+.set-sub-badge { font-size: 10.5px; font-weight: 700; color: var(--ac); background: rgba(46, 153, 156, .14); padding: 2px 8px; border-radius: 20px; font-family: var(--font-mono); }
+.set-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+.set-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+.cron-legend { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin: 0 0 16px; font-family: var(--font-mono); font-size: 12px; color: var(--tx3); line-height: 1.75; white-space: pre-wrap; overflow-x: auto; }
+.settings .input.mono { letter-spacing: .3px; }
+.settings .set-card + .set-card { margin-top: 20px; }
+.save-row { margin-top: 4px; padding-top: 20px; border-top: 1px solid var(--line); }
+@media (max-width: 720px) { .set-grid.cols-2, .set-grid.cols-3 { grid-template-columns: 1fr; } }

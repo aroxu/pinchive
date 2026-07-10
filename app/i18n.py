@@ -97,6 +97,10 @@ EN = {
         "0 3 * * 1 (Mon 03:00)"
     ),
     "settings.cron_disabled_hint": "empty = disabled",
+    "settings.schedules": "Schedules",
+    "settings.g_download": "Download",
+    "settings.g_display": "Display · page sizes",
+    "settings.g_fallback": "Session fallback",
     "settings.concurrency_help": (
         "How many boards the worker downloads in parallel. This is a startup "
         "setting: set PINCHIVE_MAX_CONCURRENCY in your .env and restart the worker."
@@ -304,6 +308,10 @@ KO = {
         "0 3 * * 1 (월 03:00)"
     ),
     "settings.cron_disabled_hint": "빈 값 = 비활성",
+    "settings.schedules": "예약",
+    "settings.g_download": "다운로드",
+    "settings.g_display": "표시 · 페이지 크기",
+    "settings.g_fallback": "세션 폴백",
     "settings.concurrency_help": (
         "워커가 동시에 다운로드하는 보드 수입니다. 시작 시 설정값이라 .env 의 "
         "PINCHIVE_MAX_CONCURRENCY 를 바꾸고 워커를 재시작해야 적용됩니다."
