@@ -64,13 +64,28 @@
           hx-on::after-request="if(event.detail.successful){this.reset();document.getElementById('add-toggle').checked=false}">
       <div class="fld-lbl">{{ t('form.board_url') }}</div>
       <input class="input" name="url" required placeholder="https://www.pinterest.com/user/board/">
-      <div class="fld-lbl" style="margin-top:14px">{{ t('form.session') }}</div>
-      <select class="input" name="credential_id">
-        <option value="">{{ t('form.public_option') }}</option>
-        {% for c in credentials %}
-        <option value="{{ c.id }}">{{ c.name }}{%- if c.status == CredentialStatus.expired %}{{ t('form.expired_suffix') }}{% endif -%}</option>
-        {% endfor %}
-      </select>
+
+      <div class="auto-box">
+        <div class="auto-row">
+          <div>
+            <div class="auto-t">{{ t('add.auto') }}</div>
+            <div class="auto-d">{{ t('add.auto_desc') }}</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" name="auto" value="1" checked class="auto-chk">
+            <span class="track"><span class="knob"></span></span>
+          </label>
+        </div>
+        <div class="cred-select">
+          <div class="fld-lbl">{{ t('add.pick_session') }}</div>
+          <select class="input" name="credential_id">
+            <option value="">{{ t('form.public_option') }}</option>
+            {% for c in credentials %}
+            <option value="{{ c.id }}">{{ c.name }}{%- if c.status == CredentialStatus.expired %}{{ t('form.expired_suffix') }}{% endif -%}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
       <div class="modal-actions">
         <label for="add-toggle" class="btn btn-ghost">{{ t('btn.clear') }}</label>
         <button class="btn btn-primary" type="submit">{{ t('btn.download_board') }}</button>

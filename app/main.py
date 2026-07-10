@@ -422,6 +422,7 @@ async def add_board(
     request: Request,
     url: str = Form(...),
     credential_id: str = Form(default=""),
+    auto: str = Form(default=""),
     session: Session = Depends(get_session),
 ):
     url = url.strip()
@@ -429,6 +430,15 @@ async def add_board(
         raise HTTPException(400, "not a Pinterest URL")
 
     cred_id = int(credential_id) if credential_id.strip().isdigit() else None
+    if auto and cred_id is None:
+        # Auto authentication: use an active session so private boards work
+        # (cookies are harmless on public boards); fall back to public if none.
+        cred = session.exec(
+            select(Credential)
+            .where(Credential.status == CredentialStatus.active)
+            .order_by(Credential.last_checked_at.desc())
+        ).first()
+        cred_id = cred.id if cred else None
     board = Board(
         url=url,
         slug=derive_slug(url),
