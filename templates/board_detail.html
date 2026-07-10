@@ -3,207 +3,153 @@
 
 {% block content %}
 {% set active = board.status in [BoardStatus.pending, BoardStatus.queued, BoardStatus.downloading] %}
-<section class="section">
-  <div class="container">
-    <a class="body-sm muted" href="/">{{ t('detail.back') }}</a>
-    <div class="row between row-wrap" style="margin-top:var(--s-md)">
-      <div>
-        <h1 class="display-md">{{ board.display_title }}</h1>
-        <a class="board-url" href="{{ board.url }}" target="_blank" rel="noopener">{{ board.display_url }}</a>
-      </div>
-      <div class="row">
-        <div class="count-item">
-          <span class="stat-sm" id="pin-count">{{ total }}</span>
-          <span class="k muted caption-uc">{{ t('stat.matching_pins') if (q or active_type or dupes) else t('stat.pins_on_disk') }}</span>
+{% set qs = 'q=' + q + '&type=' + active_type + '&sort=' + active_sort + ('&dupes=1' if dupes else '') %}
+<div class="page detail">
+  <a class="back" href="/">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M8.5 3L4.5 7l4 4"/></svg>
+    {{ t('detail.back') }}
+  </a>
+
+  <div class="detail-head">
+    <div class="dh-title">
+      <h1>{{ board.display_title }}</h1>
+      <a class="dh-url" href="{{ board.url }}" target="_blank" rel="noopener">{{ board.display_url }}</a>
+      <div id="dl-progress">
+        {% if active %}
+        <div class="dh-live">
+          {{ board.downloaded_count }} {{ t('count.downloaded') }} · {{ board.skipped_count }} {{ t('count.skipped') }}
+          {%- if board.error_count %} · <span class="text-rose">{{ board.error_count }} {{ t('count.errors') }}</span>{% endif %}
         </div>
-        <!-- Reload after enqueue so the page re-renders in its active (queued)
-             state: the pin grid starts live-polling and the progress line shows. -->
-        <button class="btn btn-primary btn-sm" hx-post="/boards/{{ board.id }}/redownload"
-                hx-swap="none" hx-on::after-request="window.location.reload()">{{ t('btn.resync') }}</button>
+        {% endif %}
       </div>
     </div>
-    <!-- Live download progress. board.downloaded/skipped/error_count are updated
-         in real time by the worker's on_progress; this line is OOB-swapped by the
-         #pins-live poll each tick. Empty (no gap) once the board isn't active. -->
-    <div id="dl-progress">
-      {% if active %}
-      <div class="body-sm muted" style="margin-top:var(--s-sm);font-family:var(--font-mono)">
-        {{ board.downloaded_count }} {{ t('count.downloaded') }} · {{ board.skipped_count }} {{ t('count.skipped') }}
-        {%- if board.error_count %} · <span style="color:var(--rose)">{{ board.error_count }} {{ t('count.errors') }}</span>{% endif %}
+    <div class="dh-right">
+      <div class="dh-count">
+        <div class="n" id="pin-count">{{ total }}</div>
+        <div class="k">{{ t('stat.matching_pins') if (q or active_type or dupes) else t('stat.pins_on_disk') }}</div>
       </div>
-      {% endif %}
+      <button class="btn btn-secondary btn-sm" hx-post="/boards/{{ board.id }}/redownload"
+              hx-swap="none" hx-on::after-request="window.location.reload()">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 7a5 5 0 1 1-1.5-3.5M12 1.5V4H9.5"/></svg>
+        {{ t('btn.resync') }}
+      </button>
     </div>
   </div>
-</section>
 
-<section class="section" style="padding-top:0">
-  <div class="container">
-    <form method="get" action="/boards/{{ board.id }}" class="filter-bar" role="search">
-      <input class="input grow" type="search" name="q" value="{{ q }}"
-             placeholder="{{ t('filter.search_pins') }}">
-      <select class="input" name="type" onchange="this.form.submit()">
-        <option value="">{{ t('media.all') }}</option>
-        <option value="image" {{ 'selected' if active_type == 'image' }}>{{ t('media.images') }}</option>
-        <option value="video" {{ 'selected' if active_type == 'video' }}>{{ t('media.videos') }}</option>
-      </select>
-      <select class="input" name="sort" onchange="this.form.submit()">
-        <option value="new"   {{ 'selected' if active_sort == 'new' }}>{{ t('sort.newest') }}</option>
-        <option value="old"   {{ 'selected' if active_sort == 'old' }}>{{ t('sort.oldest') }}</option>
-        <option value="big"   {{ 'selected' if active_sort == 'big' }}>{{ t('sort.largest') }}</option>
-        <option value="small" {{ 'selected' if active_sort == 'small' }}>{{ t('sort.smallest') }}</option>
-        <option value="name"  {{ 'selected' if active_sort == 'name' }}>{{ t('sort.name') }}</option>
-      </select>
-      <select class="input" name="view" onchange="this.form.submit()">
-        <option value="s" {{ 'selected' if active_view == 's' }}>{{ t('view.small') }}</option>
-        <option value="m" {{ 'selected' if active_view == 'm' }}>{{ t('view.medium') }}</option>
-        <option value="l" {{ 'selected' if active_view == 'l' }}>{{ t('view.large') }}</option>
-      </select>
-      <label class="tag" style="cursor:pointer">
-        <input type="checkbox" name="dupes" value="1" {{ 'checked' if dupes }}
-               onchange="this.form.submit()"> {{ t('filter.dupes_only') }}
-      </label>
-      {% if q or active_type or dupes or active_sort != 'new' or active_view != 'm' %}
-      <a class="btn btn-ghost" href="/boards/{{ board.id }}">{{ t('btn.clear') }}</a>
-      {% endif %}
+  <form class="toolbar" method="get" action="/boards/{{ board.id }}" role="search">
+    <div class="search">
+      <svg viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6.5" cy="6.5" r="4.5"/><path d="M10 10l3.5 3.5"/></svg>
+      <input type="search" name="q" value="{{ q }}" placeholder="{{ t('filter.search_pins') }}">
+    </div>
+    <input type="hidden" name="view" value="{{ active_view }}">
+    <select class="input sel" name="type" onchange="this.form.submit()">
+      <option value="">{{ t('media.all') }}</option>
+      <option value="image" {{ 'selected' if active_type == 'image' }}>{{ t('media.images') }}</option>
+      <option value="video" {{ 'selected' if active_type == 'video' }}>{{ t('media.videos') }}</option>
+    </select>
+    <select class="input sel" name="sort" onchange="this.form.submit()">
+      <option value="new" {{ 'selected' if active_sort == 'new' }}>{{ t('sort.newest') }}</option>
+      <option value="old" {{ 'selected' if active_sort == 'old' }}>{{ t('sort.oldest') }}</option>
+      <option value="big" {{ 'selected' if active_sort == 'big' }}>{{ t('sort.largest') }}</option>
+      <option value="small" {{ 'selected' if active_sort == 'small' }}>{{ t('sort.smallest') }}</option>
+      <option value="name" {{ 'selected' if active_sort == 'name' }}>{{ t('sort.name') }}</option>
+    </select>
+    <div class="seg">
+      <a class="seg-b {{ 'on' if active_view == 's' }}" href="?{{ qs }}&view=s">S</a>
+      <a class="seg-b {{ 'on' if active_view == 'm' }}" href="?{{ qs }}&view=m">M</a>
+      <a class="seg-b {{ 'on' if active_view == 'l' }}" href="?{{ qs }}&view=l">L</a>
+    </div>
+    <a class="dup-toggle {{ 'on' if dupes }}" href="?q={{ q }}&type={{ active_type }}&sort={{ active_sort }}&view={{ active_view }}{{ '' if dupes else '&dupes=1' }}">
+      <span class="dot"></span>{{ t('filter.dupes_only') }}
+    </a>
+    {% if q or active_type or dupes or active_sort != 'new' or active_view != 'm' %}
+    <a class="btn btn-ghost btn-sm" href="/boards/{{ board.id }}">{{ t('btn.clear') }}</a>
+    {% endif %}
+  </form>
+
+  <div id="pins-live"
+       {% if active %}hx-ext="morph" hx-get="{{ request.url }}" hx-trigger="every 3s"
+       hx-target="#pins-live" hx-select="#pins-live" hx-swap="morph:outerHTML"
+       hx-select-oob="#pin-count,#dl-progress"{% endif %}>
+  {% if not pins %}
+    <div class="empty-card">
+      <p class="empty-title">
+        {% if q or active_type or dupes %}{{ t('empty.no_matching_pins_title') }}{% else %}{{ t('empty.no_media_title') }}{% endif %}
+      </p>
+      <p class="muted">
+        {% if q or active_type or dupes %}{{ t('empty.try_clear') }}
+        {% elif board.status == BoardStatus.downloading %}{{ t('empty.downloading') }}
+        {% else %}{{ t('empty.no_media_body') }}{% endif %}
+      </p>
+    </div>
+  {% else %}
+    <form method="post" action="/pins/bulk-tag" id="bulk-form" class="bulk-bar"
+          onsubmit="return pinchiveBulkSubmit(event)">
+      <label class="chk"><input type="checkbox" id="select-all"> {{ t('bulk.select_all') }}</label>
+      <span class="sel-count" id="sel-count" data-tmpl="{{ t('bulk.selected', n='{n}') }}">{{ t('bulk.selected', n=0) }}</span>
+      <input class="input mini" name="name" placeholder="{{ t('bulk.tag_name') }}" maxlength="30" aria-label="bulk tag name">
+      <button class="btn btn-primary btn-xs" name="action" value="add">{{ t('bulk.add_tag') }}</button>
+      <button class="btn btn-secondary btn-xs" name="action" value="remove">{{ t('bulk.remove_tag') }}</button>
+      <button class="btn btn-danger btn-xs" name="action" value="delete" data-confirm="{{ t('confirm.bulk_delete') }}">{{ t('bulk.delete_selected') }}</button>
     </form>
 
-    <!-- Morph swap (idiomorph): the 3s poll updates only what changed instead of
-         replacing the grid, so already-loaded images/videos aren't reloaded —
-         no flicker, and videos keep playing. -->
-    <div id="pins-live"
-         {% if active %}hx-ext="morph" hx-get="{{ request.url }}" hx-trigger="every 3s"
-         hx-target="#pins-live" hx-select="#pins-live" hx-swap="morph:outerHTML"
-         hx-select-oob="#pin-count,#dl-progress"{% endif %}>
-    {% if not pins %}
-      <div class="card">
-        <p class="title-md">
-          {% if q or active_type or dupes %}{{ t('empty.no_matching_pins_title') }}{% else %}{{ t('empty.no_media_title') }}{% endif %}
-        </p>
-        <p class="muted">
-          {% if q or active_type or dupes %}{{ t('empty.try_clear') }}
-          {% elif board.status == BoardStatus.downloading %}{{ t('empty.downloading') }}
-          {% else %}{{ t('empty.no_media_body') }}{% endif %}
-        </p>
+    <div class="masonry view-{{ active_view }}">
+      {% for pin in pins %}
+      <div class="pin-cell" id="pin-{{ pin.id }}">
+        {% if pin.media_type == "video" %}
+          <video class="zoomable" src="/media/{{ pin.rel_path }}" autoplay muted loop playsinline preload="metadata"></video>
+          <span class="pin-badge vtag"><svg width="9" height="9" viewBox="0 0 9 9" fill="currentColor"><path d="M1 0.5l7 4-7 4z"/></svg>{{ t('media.videos') }}</span>
+        {% else %}
+          <img class="zoomable" loading="lazy" src="/media/{{ pin.rel_path }}" alt="{{ pin.title or pin.filename }}">
+        {% endif %}
+        <label class="pin-check"><input type="checkbox" class="pin-select" value="{{ pin.id }}" aria-label="select pin"></label>
+        {% if pin.dup_group %}<span class="pin-badge dup">{{ t('nav.duplicates') }}</span>{% endif %}
       </div>
-    {% else %}
-      <!-- Bulk actions. Checkboxes live outside this form (avoids nested forms
-           with the per-pin tag forms); JS injects the selected ids on submit. -->
-      <form method="post" action="/pins/bulk-tag" id="bulk-form" class="bulk-bar"
-            onsubmit="return pinchiveBulkSubmit(event)">
-        <label class="tag" style="cursor:pointer">
-          <input type="checkbox" id="select-all"> {{ t('bulk.select_all') }}
-        </label>
-        <span class="caption-uc" id="sel-count" style="color:var(--muted)"
-              data-tmpl="{{ t('bulk.selected', n='{n}') }}">{{ t('bulk.selected', n=0) }}</span>
-        <input class="input" name="name" placeholder="{{ t('bulk.tag_name') }}" maxlength="30"
-               style="width:auto" aria-label="bulk tag name">
-        <button class="btn btn-secondary btn-sm" name="action" value="add">{{ t('bulk.add_tag') }}</button>
-        <button class="btn btn-secondary btn-sm" name="action" value="remove">{{ t('bulk.remove_tag') }}</button>
-        <button class="btn btn-danger btn-sm" name="action" value="delete"
-                data-confirm="{{ t('confirm.bulk_delete') }}">{{ t('bulk.delete_selected') }}</button>
-      </form>
-
-      <div class="pin-grid view-{{ active_view }}">
-        {% for pin in pins %}
-        <div class="pin-cell" id="pin-{{ pin.id }}">
-          <label class="pin-check">
-            <input type="checkbox" class="pin-select" value="{{ pin.id }}"
-                   aria-label="select pin">
-          </label>
-          <div class="pin">
-            {% if pin.media_type == "video" %}
-              <!-- Autoplay muted+looped in the grid (like a feed); click opens the
-                   lightbox where it plays with sound. Range requests via StaticFiles. -->
-              <video class="zoomable" src="/media/{{ pin.rel_path }}"
-                     autoplay muted loop playsinline preload="metadata"></video>
-              <span class="vtag">{{ t('media.videos') }}</span>
-            {% else %}
-              <img class="zoomable" loading="lazy" src="/media/{{ pin.rel_path }}"
-                   alt="{{ pin.title or pin.pinterest_id or pin.filename }}">
-            {% endif %}
-          </div>
-          <div class="tag-row" style="margin-top:6px">
-            {% for tg in pin.tags %}
-            <span class="tag">#{{ tg.name }}
-              <form method="post" action="/pins/{{ pin.id }}/untag/{{ tg.id }}" style="display:inline">
-                <button class="x" type="submit" title="remove">×</button>
-              </form>
-            </span>
-            {% endfor %}
-            <form method="post" action="/pins/{{ pin.id }}/tag" class="tag-add">
-              <input name="name" placeholder="{{ t('tag.add') }}" maxlength="30" aria-label="add tag">
-            </form>
-          </div>
-        </div>
-        {% endfor %}
-      </div>
-
-      {% include "partials/pagination.html" %}
-    {% endif %}
+      {% endfor %}
     </div>
 
-    <!-- Bulk selection uses event delegation + a bind guard so it keeps working
-         after the grid is swapped by the download live-poll above. -->
-    <script>
-      (function () {
-        if (window.__pinchiveBulkBound) return;
-        window.__pinchiveBulkBound = true;
-        function boxes() {
-          return Array.prototype.slice.call(document.querySelectorAll('.pin-select'));
-        }
-        function refresh() {
-          var c = document.getElementById('sel-count');
-          if (!c) return;
-          var n = boxes().filter(function (b) { return b.checked; }).length;
-          c.textContent = (c.dataset.tmpl || '{n}').replace('{n}', n);
-        }
-        document.addEventListener('change', function (e) {
-          if (!e.target) return;
-          if (e.target.id === 'select-all') {
-            boxes().forEach(function (b) { b.checked = e.target.checked; });
-            refresh();
-          } else if (e.target.classList.contains('pin-select')) {
-            refresh();
-          }
-        });
-        window.pinchiveBulkSubmit = function (e) {
-          var btn = e.submitter;
-          var selected = boxes().filter(function (b) { return b.checked; });
-          if (!selected.length) { alert("{{ t('alert.select_pins') }}"); return false; }
-          if (btn && btn.dataset.confirm && !confirm(btn.dataset.confirm)) return false;
-          var form = document.getElementById('bulk-form');
-          form.querySelectorAll('input[name="pin_ids"]').forEach(function (n) { n.remove(); });
-          selected.forEach(function (b) {
-            var h = document.createElement('input');
-            h.type = 'hidden'; h.name = 'pin_ids'; h.value = b.value;
-            form.appendChild(h);
-          });
-          return true;
-        };
-      })();
-    </script>
+    {% include "partials/pagination.html" %}
+  {% endif %}
   </div>
-</section>
 
-{% if board.log_tail %}
-<!-- Download log, tucked below the grid in a collapsed accordion so the 403
-     recoveries / skips don't read as a page-level error. Click to expand. -->
-<section class="section" style="padding-top:0">
-  <div class="container">
-    <details class="log-accordion">
-      <summary>
-        {{ t('log.title') }}
-        {%- if board.error_count %} · <span style="color:var(--rose)">{{ board.error_count }} {{ t('count.errors') }}</span>{% endif %}
-      </summary>
-      <div class="code-window">
-        <pre>{{ board.log_tail }}</pre>
-        <div class="statusbar">
-          {{ board.downloaded_count }} {{ t('count.downloaded') }} · {{ board.skipped_count }} {{ t('count.skipped') }}
-          {%- if board.error_count %} · <span style="color:var(--rose)">{{ board.error_count }} {{ t('count.errors') }}</span>{% endif %}
-        </div>
-      </div>
-    </details>
-  </div>
-</section>
-{% endif %}
+  {% if board.log_tail %}
+  <details class="log-accordion">
+    <summary>{{ t('log.title') }}{%- if board.error_count %} · <span class="text-rose">{{ board.error_count }} {{ t('count.errors') }}</span>{% endif %}</summary>
+    <div class="code-window">
+      <pre>{{ board.log_tail }}</pre>
+      <div class="statusbar">{{ board.downloaded_count }} {{ t('count.downloaded') }} · {{ board.skipped_count }} {{ t('count.skipped') }}</div>
+    </div>
+  </details>
+  {% endif %}
+</div>
+
+<script>
+  (function () {
+    if (window.__pinchiveBulkBound) return;
+    window.__pinchiveBulkBound = true;
+    function boxes() { return Array.prototype.slice.call(document.querySelectorAll('.pin-select')); }
+    function refresh() {
+      var c = document.getElementById('sel-count'); if (!c) return;
+      var n = boxes().filter(function (b) { return b.checked; }).length;
+      c.textContent = (c.dataset.tmpl || '{n}').replace('{n}', n);
+    }
+    document.addEventListener('change', function (e) {
+      if (!e.target) return;
+      if (e.target.id === 'select-all') { boxes().forEach(function (b) { b.checked = e.target.checked; }); refresh(); }
+      else if (e.target.classList.contains('pin-select')) { refresh(); }
+    });
+    window.pinchiveBulkSubmit = function (e) {
+      var btn = e.submitter;
+      var selected = boxes().filter(function (b) { return b.checked; });
+      if (!selected.length) { alert("{{ t('alert.select_pins') }}"); return false; }
+      if (btn && btn.dataset.confirm && !confirm(btn.dataset.confirm)) return false;
+      var form = document.getElementById('bulk-form');
+      form.querySelectorAll('input[name="pin_ids"]').forEach(function (n) { n.remove(); });
+      selected.forEach(function (b) {
+        var h = document.createElement('input'); h.type = 'hidden'; h.name = 'pin_ids'; h.value = b.value; form.appendChild(h);
+      });
+      return true;
+    };
+  })();
+</script>
 {% endblock %}

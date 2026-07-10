@@ -123,6 +123,45 @@ def _asset_url(path: str) -> str:
 
 templates.env.globals["asset"] = _asset_url
 
+
+def _sidebar_counts() -> dict:
+    """Counts shown in the sidebar on every full-page render."""
+    from app.db import session_scope
+
+    with session_scope() as s:
+        boards = s.exec(select(func.count()).select_from(Board)).one()
+        creds = s.exec(select(func.count()).select_from(Credential)).one()
+        syncing = s.exec(
+            select(func.count()).select_from(Board)
+            .where(Board.status.in_(list(ACTIVE_STATUSES)))
+        ).one()
+        gids = set(s.exec(select(Pin.dup_group).where(Pin.dup_group.is_not(None))).all())
+        in_groups = s.exec(
+            select(func.count()).select_from(Pin).where(Pin.dup_group.is_not(None))
+        ).one()
+    return {
+        "boards": boards, "creds": creds, "syncing": syncing,
+        "removable": max(0, in_groups - len(gids)),
+    }
+
+
+templates.env.globals["sidebar_counts"] = _sidebar_counts
+
+
+def _board_covers(board_id: int, n: int = 4) -> list[str]:
+    """Up to n image rel_paths for a board's collage cover."""
+    from app.db import session_scope
+
+    with session_scope() as s:
+        return list(s.exec(
+            select(Pin.rel_path)
+            .where(Pin.board_id == board_id, Pin.media_type == "image")
+            .order_by(Pin.filename).limit(n)
+        ).all())
+
+
+templates.env.globals["board_covers"] = _board_covers
+
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 # Downloaded media, served read-only from the data volume.
 app.mount("/media", StaticFiles(directory=str(settings.boards_dir)), name="media")

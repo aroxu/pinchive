@@ -2,175 +2,108 @@
 {% block title %}{{ t('settings.title') }} — Pinchive{% endblock %}
 
 {% block content %}
-<section class="section">
-  <div class="container">
-    <span class="badge-teal badge">{{ t('settings.title') }}</span>
-    <h1 class="display-lg" style="margin-top:var(--s-sm)">{{ t('settings.title') }}</h1>
-  </div>
-</section>
+<div class="page settings">
+  <h1 class="page-title">{{ t('settings.title') }}</h1>
 
-<section class="section" style="padding-top:0">
-  <div class="container">
-    <div class="row between row-wrap" style="margin-bottom:var(--s-lg)">
-      <h2 class="display-sm">{{ t('settings.automation') }}</h2>
+  {% if synced %}<p class="flash">{{ t('settings.synced') }}</p>{% endif %}
+  {% if saved %}<p class="flash">{{ t('settings.saved') }}</p>{% endif %}
+
+  <!-- automation -->
+  <section class="set-card">
+    <div class="set-head">
+      <h2>{{ t('settings.automation') }} · crontab</h2>
       <form method="post" action="/settings/sync-all">
         <button class="btn btn-primary btn-sm" type="submit">{{ t('settings.sync_all') }}</button>
       </form>
     </div>
-    {% if synced %}
-    <p class="body-sm" style="color:var(--primary);margin-bottom:var(--s-md)">{{ t('settings.synced') }}</p>
-    {% endif %}
-    {% if saved %}
-    <p class="body-sm" style="color:var(--primary);margin-bottom:var(--s-md)">{{ t('settings.saved') }}</p>
-    {% endif %}
+    <p class="cron-legend">{{ t('settings.cron_help') }}</p>
 
-    <div class="card cron-help" style="margin-bottom:var(--s-md)">
-      <p class="body-sm body-strong" style="margin:0 0 var(--s-xs)">{{ t('settings.cron_help_title') }}</p>
-      <pre style="margin:0;font-family:var(--font-mono);font-size:12px;line-height:1.5;color:var(--muted);white-space:pre-wrap">{{ t('settings.cron_help') }}</pre>
-    </div>
-
-    <div class="card">
-      <form method="post" action="/settings/save" class="settings-grid">
-        <label class="field">
-          <span class="lbl">{{ t('settings.resync_interval') }}</span>
-          <input class="input" type="text" name="resync_cron" spellcheck="false"
-                 value="{{ eff.resync_cron }}" placeholder="30 4 * * *">
-          <span class="desc">{{ t('settings.resync_desc') }}</span>
+    <form method="post" action="/settings/save">
+      <div class="set-grid">
+        <label class="sf">
+          <span class="sf-lbl">{{ t('settings.resync_interval') }}</span>
+          <input class="input mono" type="text" name="resync_cron" value="{{ eff.resync_cron }}" placeholder="30 4 * * *" spellcheck="false">
+          <span class="sf-desc">{{ t('settings.resync_desc') }}</span>
         </label>
-        <label class="field">
-          <span class="lbl">{{ t('settings.refresh_interval') }}</span>
-          <input class="input" type="text" name="refresh_cron" spellcheck="false"
-                 value="{{ eff.refresh_cron }}" placeholder="0 */6 * * *">
-          <span class="desc">{{ t('settings.refresh_desc') }}</span>
+        <label class="sf">
+          <span class="sf-lbl">{{ t('settings.refresh_interval') }}</span>
+          <input class="input mono" type="text" name="refresh_cron" value="{{ eff.refresh_cron }}" placeholder="0 */6 * * *" spellcheck="false">
+          <span class="sf-desc">{{ t('settings.refresh_desc') }}</span>
         </label>
-        <label class="field">
-          <span class="lbl">{{ t('settings.dedup_interval') }}</span>
-          <input class="input" type="text" name="dedup_cron" spellcheck="false"
-                 value="{{ eff.dedup_cron }}" placeholder="45 */6 * * *">
-          <span class="desc">{{ t('settings.dedup_desc') }}</span>
+        <label class="sf">
+          <span class="sf-lbl">{{ t('settings.dedup_interval') }}</span>
+          <input class="input mono" type="text" name="dedup_cron" value="{{ eff.dedup_cron }}" placeholder="45 */6 * * *" spellcheck="false">
+          <span class="sf-desc">{{ t('settings.dedup_desc') }}</span>
         </label>
-        <label class="field">
-          <span class="lbl">{{ t('settings.timeout') }}</span>
-          <input class="input" type="number" name="pin_stall_timeout" min="30" max="7200"
-                 value="{{ eff.pin_stall_timeout }}">
-          <span class="desc">{{ t('settings.timeout_desc') }}</span>
+        <label class="sf">
+          <span class="sf-lbl">{{ t('settings.timeout') }}</span>
+          <input class="input" type="number" name="pin_stall_timeout" min="30" max="7200" value="{{ eff.pin_stall_timeout }}">
+          <span class="sf-desc">{{ t('settings.timeout_desc') }}</span>
         </label>
-        <label class="field">
-          <span class="lbl">{{ t('settings.dl_sleep') }}</span>
-          <input class="input" type="number" step="0.1" name="dl_sleep" min="0" max="30"
-                 value="{{ eff.dl_sleep }}">
-          <span class="desc">{{ t('settings.dl_sleep_desc') }}</span>
+        <label class="sf">
+          <span class="sf-lbl">{{ t('settings.dl_sleep') }}</span>
+          <input class="input" type="number" step="0.1" name="dl_sleep" min="0" max="30" value="{{ eff.dl_sleep }}">
+          <span class="sf-desc">{{ t('settings.dl_sleep_desc') }}</span>
         </label>
-        <label class="field">
-          <span class="lbl">{{ t('settings.per_page_boards') }}</span>
-          <input class="input" type="number" name="per_page_boards" min="1" max="200"
-                 value="{{ eff.per_page_boards }}">
-          <span class="desc">{{ t('settings.per_page_boards_desc') }}</span>
+        <label class="sf">
+          <span class="sf-lbl">{{ t('settings.per_page_boards') }}</span>
+          <input class="input" type="number" name="per_page_boards" min="1" max="200" value="{{ eff.per_page_boards }}">
+          <span class="sf-desc">{{ t('settings.per_page_boards_desc') }}</span>
         </label>
-        <label class="field">
-          <span class="lbl">{{ t('settings.per_page_pins') }}</span>
-          <input class="input" type="number" name="per_page_pins" min="1" max="500"
-                 value="{{ eff.per_page_pins }}">
-          <span class="desc">{{ t('settings.per_page_pins_desc') }}</span>
+        <label class="sf">
+          <span class="sf-lbl">{{ t('settings.per_page_pins') }}</span>
+          <input class="input" type="number" name="per_page_pins" min="1" max="500" value="{{ eff.per_page_pins }}">
+          <span class="sf-desc">{{ t('settings.per_page_pins_desc') }}</span>
         </label>
-        <label class="field">
-          <span class="lbl">{{ t('settings.per_page_dupes') }}</span>
-          <input class="input" type="number" name="per_page_dupes" min="1" max="200"
-                 value="{{ eff.per_page_dupes }}">
-          <span class="desc">{{ t('settings.per_page_dupes_desc') }}</span>
+        <label class="sf">
+          <span class="sf-lbl">{{ t('settings.per_page_dupes') }}</span>
+          <input class="input" type="number" name="per_page_dupes" min="1" max="200" value="{{ eff.per_page_dupes }}">
+          <span class="sf-desc">{{ t('settings.per_page_dupes_desc') }}</span>
         </label>
-        <div class="field">
-          <span class="lbl">{{ t('settings.playwright') }}</span>
-          <label class="switch">
-            <input type="checkbox" name="use_playwright_fallback" value="true"
-                   {{ 'checked' if eff.use_playwright_fallback }}>
-            <span class="track"><span class="knob"></span></span>
-            <span class="on">{{ t('settings.enabled') }}</span>
-            <span class="off">{{ t('settings.disabled') }}</span>
-          </label>
-          <span class="desc">{{ t('settings.playwright_desc') }}</span>
-        </div>
-
-        <div class="settings-actions">
-          <button class="btn btn-primary" type="submit">{{ t('settings.save') }}</button>
-        </div>
-      </form>
-
-      <hr class="hr" style="margin:var(--s-lg) 0">
-      <table class="cred">
-        <tbody>
-          <tr><td>{{ t('settings.concurrency') }}
-            <span class="help-q" tabindex="0" title="{{ t('settings.concurrency_help') }}">?</span>
-          </td><td class="body-strong">
-            {{ cfg.max_concurrency }} <span class="body-sm muted">· {{ t('settings.concurrency_env') }}</span>
-          </td></tr>
-          <tr><td>{{ t('settings.queue') }}</td><td>
-            <span class="badge"><span class="badge-dot {{ 'dot-emerald' if queue_up else 'dot-rose' }}"></span>{{ t('settings.on') if queue_up else t('settings.off') }}</span>
-          </td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-</section>
-
-<hr class="hr">
-
-<section class="section">
-  <div class="container">
-    <div class="hero-split creds-split">
-      <div class="stack">
-        <span class="badge-teal badge">{{ t('creds.badge') }}</span>
-        <h2 class="display-md">{{ t('creds.title') }}</h2>
-        <p class="title-md muted" style="max-width:48ch">{{ t('creds.subtitle') }}</p>
-        <div class="code-window" style="margin-top:var(--s-md)">
-          <div class="chrome"><span class="lamp"></span><span class="lamp"></span><span class="lamp"></span>
-            <span class="caption muted" style="margin-left:auto">{{ t('creds.how_export') }}</span></div>
-          <pre><span class="tok-com">{{ t('creds.export_1') }}</span>
-<span class="tok-com">{{ t('creds.export_2') }}</span>
-<span class="tok-com">{{ t('creds.export_3') }}</span>
-<span class="tok-com">{{ t('creds.export_4') }}</span>
-
-<span class="tok-key">{{ t('creds.export_req') }}</span>: <span class="tok-str">_pinterest_sess</span></pre>
-          <div class="statusbar">{{ t('creds.accepted') }}</div>
-        </div>
       </div>
 
-      <div class="card">
-        <form method="post" action="/credentials" class="stack">
-          <label class="field">
-            <span class="lbl">{{ t('form.name') }}</span>
-            <input class="input" name="name" required placeholder="my-account">
-          </label>
-          <label class="field field-grow">
-            <span class="lbl">{{ t('form.cookies') }}</span>
-            <textarea class="textarea" name="cookies" required
-              placeholder="# Netscape HTTP Cookie File&#10;.pinterest.com   TRUE   /   TRUE   0   _pinterest_sess   ...&#10;&#10;— or —&#10;[{&quot;name&quot;:&quot;_pinterest_sess&quot;,&quot;value&quot;:&quot;...&quot;}]"></textarea>
-          </label>
-          <button class="btn btn-primary" type="submit">{{ t('btn.save_validate') }}</button>
-        </form>
-      </div>
-    </div>
+      <hr class="set-hr">
 
-    <div class="row between" style="margin:var(--s-xl) 0 var(--s-lg)">
-      <h3 class="title-lg">{{ t('creds.stored') }}</h3>
-      <span class="caption-uc">{{ t('creds.count', n=credentials|length) }}</span>
-    </div>
-    {% if not credentials %}
-      <div class="card"><p class="muted">{{ t('creds.empty') }}</p></div>
-    {% else %}
-      <div class="card card-pad-lg" style="padding:0">
-        <table class="cred">
-          <thead>
-            <tr><th>{{ t('th.name') }}</th><th>{{ t('th.status') }}</th><th>{{ t('th.last_checked') }}</th><th>{{ t('th.note') }}</th><th></th></tr>
-          </thead>
-          <tbody>
-            {% for cred in credentials %}
-              {% include "partials/credential_row.html" %}
-            {% endfor %}
-          </tbody>
-        </table>
+      <div class="set-row">
+        <div>
+          <div class="set-row-t">{{ t('settings.playwright') }}</div>
+          <div class="set-row-d">{{ t('settings.playwright_desc') }}</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" name="use_playwright_fallback" value="true" {{ 'checked' if eff.use_playwright_fallback }}>
+          <span class="track"><span class="knob"></span></span>
+        </label>
       </div>
-    {% endif %}
-  </div>
-</section>
+
+      <div class="save-row"><button class="btn btn-primary" type="submit">{{ t('settings.save') }}</button></div>
+    </form>
+
+    <div class="set-foot">
+      <div><div class="sf-lbl">{{ t('settings.concurrency') }}</div><div class="set-foot-v">{{ cfg.max_concurrency }} <span class="muted">· {{ t('settings.concurrency_env') }}</span></div></div>
+      <div><div class="sf-lbl">{{ t('settings.queue') }}</div><div class="set-foot-v"><span class="q-dot {{ 'on' if queue_up else 'off' }}"></span>{{ t('settings.on') if queue_up else t('settings.off') }}</div></div>
+    </div>
+  </section>
+
+  <!-- sessions -->
+  <section class="set-card">
+    <h2>{{ t('creds.title') }} · {{ t('creds.badge') }}</h2>
+    <p class="set-p">{{ t('creds.subtitle') }}</p>
+
+    <form method="post" action="/credentials" class="sess-grid">
+      <div class="sess-left">
+        <input class="input" name="name" required placeholder="{{ t('form.name') }}">
+        <button class="btn btn-primary" type="submit">{{ t('btn.save_validate') }}</button>
+      </div>
+      <textarea class="input mono sess-cookies" name="cookies" required placeholder="# Netscape HTTP Cookie File&#10;.pinterest.com  TRUE  /  TRUE  0  _pinterest_sess  ...&#10;&#10;— or —&#10;[{&quot;name&quot;:&quot;_pinterest_sess&quot;,&quot;value&quot;:&quot;...&quot;}]"></textarea>
+    </form>
+
+    <div class="cred-table">
+      <div class="cred-head"><span>{{ t('th.name') }}</span><span>{{ t('th.status') }}</span><span>{{ t('th.last_checked') }}</span><span></span></div>
+      {% for cred in credentials %}
+        {% include "partials/credential_row.html" %}
+      {% endfor %}
+      {% if not credentials %}<div class="cred-empty muted">{{ t('creds.empty') }}</div>{% endif %}
+    </div>
+  </section>
+</div>
 {% endblock %}

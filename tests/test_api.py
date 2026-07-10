@@ -51,7 +51,7 @@ def test_stats_endpoint_counts_and_polls(client):
     # keeps polling itself
     assert 'hx-get="/stats"' in r.text
     # counts present (1 board, 2 pins, 0 sessions)
-    assert ">1<" in r.text and ">2<" in r.text
+    assert "1 boards" in r.text and "2 pins" in r.text
 
 
 def test_healthz_queue_disabled(client):
@@ -275,9 +275,9 @@ def test_pin_sort_by_name_and_recency(client):
 def test_pin_view_class(client):
     bid = _mk_board(slug="vw")
     _mk_pin(bid, "vw/a.jpg")
-    assert "pin-grid view-l" in client.get(f"/boards/{bid}?view=l").text
-    assert "pin-grid view-s" in client.get(f"/boards/{bid}?view=s").text
-    assert "pin-grid view-m" in client.get(f"/boards/{bid}").text  # default
+    assert "masonry view-l" in client.get(f"/boards/{bid}?view=l").text
+    assert "masonry view-s" in client.get(f"/boards/{bid}?view=s").text
+    assert "masonry view-m" in client.get(f"/boards/{bid}").text  # default
 
 
 def test_bulk_tag_add_and_remove(client):

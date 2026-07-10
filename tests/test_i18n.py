@@ -75,14 +75,14 @@ def test_resolve_unsupported_falls_back_to_default():
 def test_page_korean_via_accept_language(client):
     r = client.get("/", headers={"Accept-Language": "ko-KR,ko;q=0.9"})
     assert r.status_code == 200
-    assert "내 아카이브" in r.text          # archive.title (ko)
-    assert "Your archive" not in r.text
+    assert "보드 추가" in r.text            # nav.add_board (ko)
+    assert "Add board" not in r.text
 
 
 def test_page_default_english(client):
     r = client.get("/")
-    assert "Your archive" in r.text
-    assert "내 아카이브" not in r.text
+    assert "Add board" in r.text
+    assert "보드 추가" not in r.text
 
 
 def test_lang_query_sets_cookie_and_renders(client):

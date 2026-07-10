@@ -2,72 +2,62 @@
 {% block title %}{{ t('nav.duplicates') }} — Pinchive{% endblock %}
 
 {% block content %}
-<section class="section">
-  <div class="container">
-    <span class="badge-teal badge">{{ t('dup.badge') }}</span>
-    <div class="row between row-wrap" style="margin-top:var(--s-md)">
-      <div>
-        <h1 class="display-md">{{ t('dup.title') }}</h1>
-        <p class="muted" style="max-width:60ch">
-          {{ t('dup.subtitle_1') }}
-          <span class="tag" style="border-color:var(--primary)">{{ t('dup.keep')|upper }}</span>{{ t('dup.subtitle_2') }}
-        </p>
-      </div>
-      <div class="row" style="gap:var(--s-lg)">
-        <div class="count-item">
-          <span class="stat-sm">{{ total_extra }}</span>
-          <span class="k muted caption-uc">{{ t('dup.removable') }}</span>
-        </div>
-        {% if total_extra %}
-        <form method="post" action="/duplicates/resolve-all"
-              onsubmit="return confirm('{{ t('confirm.dup_delete_all') }}')">
-          <button class="btn btn-danger btn-sm" type="submit">{{ t('dup.delete_all') }}</button>
-        </form>
-        {% endif %}
-        <form method="post" action="/duplicates/rescan">
-          <button class="btn btn-secondary btn-sm" type="submit">{{ t('dup.rescan') }}</button>
-        </form>
-      </div>
+<div class="page dupes">
+  <div class="page-head">
+    <div style="max-width:56ch">
+      <h1 class="page-title">{{ t('dup.title') }}</h1>
+      <p class="page-sub" style="line-height:1.6">
+        {{ t('dup.subtitle_1') }}
+        <span class="keep-inline">{{ t('dup.keep')|upper }}</span>{{ t('dup.subtitle_2') }}
+      </p>
     </div>
-    <!-- Live scan status: loads current progress, then self-polls while running. -->
-    <div id="dedup-status" hx-get="/duplicates/status" hx-trigger="load"
-         hx-swap="outerHTML"></div>
-  </div>
-</section>
-
-<section class="section" style="padding-top:0">
-  <div class="container">
-    {% if not groups %}
-      <div class="card">
-        <p class="title-md">{{ t('dup.empty_title') }}</p>
-        <p class="muted">{{ t('dup.empty_body') }}</p>
+    <div class="dupes-actions">
+      <div class="dupes-count">
+        <div class="n">{{ total_extra }}</div>
+        <div class="k">{{ t('dup.removable') }}</div>
       </div>
-    {% endif %}
+      <form method="post" action="/duplicates/rescan">
+        <button class="btn btn-secondary btn-sm" type="submit">{{ t('dup.rescan') }}</button>
+      </form>
+      {% if total_extra %}
+      <form method="post" action="/duplicates/resolve-all" onsubmit="return confirm('{{ t('confirm.dup_delete_all') }}')">
+        <button class="btn btn-danger btn-sm" type="submit">{{ t('dup.delete_all') }}</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
 
+  <div id="dedup-status" hx-get="/duplicates/status" hx-trigger="load" hx-swap="outerHTML"></div>
+
+  {% if not groups %}
+  <div class="empty-card">
+    <p class="empty-title">{{ t('dup.empty_title') }}</p>
+    <p class="muted">{{ t('dup.empty_body') }}</p>
+  </div>
+  {% endif %}
+
+  <div class="dupe-groups">
     {% for group in groups %}
-    <form method="post" action="/duplicates/resolve" class="dupe-group"
-          onsubmit="return confirm('{{ t('confirm.dupe_delete') }}')">
-      <div class="row between" style="margin-bottom:var(--s-md)">
-        <span class="title-sm">{{ t('dup.copies', n=group|length) }}</span>
-        <button class="btn btn-danger btn-sm" type="submit">{{ t('bulk.delete_selected') }}</button>
+    <form method="post" action="/duplicates/resolve" class="dupe-group" onsubmit="return confirm('{{ t('confirm.dupe_delete') }}')">
+      <div class="dg-head">
+        <span class="dg-count">{{ t('dup.copies', n=group|length) }}</span>
+        <button class="btn btn-danger btn-xs" type="submit">{{ t('bulk.delete_selected') }}</button>
       </div>
       <div class="dupe-grid">
         {% for pin in group %}
         <div class="dupe-item {{ 'keep' if loop.first }}">
-          {% if loop.first %}<span class="keep-badge">{{ t('dup.keep') }}</span>{% endif %}
           {% if pin.media_type == "video" %}
-          <video class="zoomable" src="/media/{{ pin.rel_path }}"
-                 autoplay muted loop playsinline preload="metadata"></video>
+          <video class="zoomable" src="/media/{{ pin.rel_path }}" autoplay muted loop playsinline preload="metadata"></video>
           {% else %}
           <img class="zoomable" loading="lazy" src="/media/{{ pin.rel_path }}" alt="{{ pin.filename }}">
           {% endif %}
-          <label class="pick">
-            <input type="checkbox" name="pin_ids" value="{{ pin.id }}"
-                   {{ 'checked' if not loop.first }}>
-            del
-          </label>
-          <div class="meta">
-            <a class="muted" href="/boards/{{ pin.board_id }}">{{ t('dup.board', id=pin.board_id) }}</a>
+          {% if loop.first %}
+          <span class="keep-badge">{{ t('dup.keep')|upper }}</span>
+          {% else %}
+          <label class="del-pick"><input type="checkbox" name="pin_ids" value="{{ pin.id }}" checked>{{ t('btn.delete') }}</label>
+          {% endif %}
+          <div class="di-meta">
+            <a href="/boards/{{ pin.board_id }}">{{ t('dup.board', id=pin.board_id) }}</a>
             <span>{{ pin.width or '?' }}×{{ pin.height or '?' }}</span>
           </div>
         </div>
@@ -75,8 +65,8 @@
       </div>
     </form>
     {% endfor %}
-
-    {% include "partials/pagination.html" %}
   </div>
-</section>
+
+  {% include "partials/pagination.html" %}
+</div>
 {% endblock %}

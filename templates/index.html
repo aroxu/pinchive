@@ -2,112 +2,80 @@
 {% block title %}Pinchive — {{ t('nav.boards') }}{% endblock %}
 
 {% block content %}
-<section class="section">
-  <div class="container">
-    <div class="hero-split">
-      <div class="stack">
-        <span class="badge-teal badge">{{ t('hero.badge') }}</span>
-        <h1 class="display-xl">{{ t('hero.title_1') }}<br>{{ t('hero.title_2') }}</h1>
-        <p class="title-md muted" style="max-width:46ch">
-          {{ t('hero.subtitle') }}
-        </p>
-        {% include "partials/hero_stats.html" %}
-      </div>
-
-      <div class="code-window" id="add">
-        <div class="chrome">
-          <span class="lamp"></span><span class="lamp"></span><span class="lamp"></span>
-          <span class="caption muted" style="margin-left:auto">{{ t('add.title') }}</span>
-        </div>
-        <div style="padding:var(--s-lg)">
-          <form hx-post="/boards" hx-target="#board-list" hx-swap="afterbegin"
-                hx-on::after-request="if(event.detail.successful) this.reset()"
-                class="stack">
-            <label class="field">
-              <span class="lbl">{{ t('form.board_url') }}</span>
-              <input class="input" name="url" required
-                     placeholder="https://www.pinterest.com/user/board/">
-            </label>
-            <label class="field">
-              <span class="lbl">{{ t('form.session') }}</span>
-              <select class="input" name="credential_id">
-                <option value="">{{ t('form.public_option') }}</option>
-                {% for c in credentials %}
-                <option value="{{ c.id }}">{{ c.name }}
-                  {%- if c.status == CredentialStatus.expired %}{{ t('form.expired_suffix') }}{% endif -%}
-                </option>
-                {% endfor %}
-              </select>
-            </label>
-            <button class="btn btn-primary" type="submit">{{ t('btn.download_board') }}</button>
-          </form>
-        </div>
-      </div>
+<input type="checkbox" id="add-toggle" class="modal-toggle">
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h1 class="page-title">{{ t('nav.boards') }}</h1>
+      <p class="page-sub" id="hero-stats" hx-get="/stats" hx-trigger="every 5s" hx-swap="outerHTML">{{ t('archive.count', n=stat_boards) }} · {{ t('stat.pins') }} {{ stat_pins }}</p>
     </div>
-  </div>
-</section>
-
-<hr class="hr">
-
-<section class="section">
-  <div class="container">
-    <div class="row between" style="margin-bottom:var(--s-lg)">
-      <h2 class="display-sm">{{ t('archive.title') }}</h2>
-      <span class="caption-uc">{{ t('archive.count', n=total) }}</span>
-    </div>
-
-    <form method="get" action="/" class="filter-bar" role="search">
-      <input class="input grow" type="search" name="q" value="{{ q }}"
-             placeholder="{{ t('filter.search_boards') }}">
-      <select class="input" name="status" onchange="this.form.submit()">
-        <option value="">{{ t('filter.all_status') }}</option>
-        {% for st in statuses %}
-        <option value="{{ st }}" {{ 'selected' if active_status == st }}>{{ t('status.' + st) }}</option>
-        {% endfor %}
-      </select>
+    <form method="get" action="/" class="head-tools" role="search">
+      <div class="search">
+        <svg viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6.5" cy="6.5" r="4.5"/><path d="M10 10l3.5 3.5"/></svg>
+        <input type="search" name="q" value="{{ q }}" placeholder="{{ t('filter.search_boards') }}">
+      </div>
       {% if all_tags %}
-      <select class="input" name="tag" onchange="this.form.submit()">
+      <select class="input sel" name="tag" onchange="this.form.submit()">
         <option value="">{{ t('filter.all_tags') }}</option>
         {% for tg in all_tags %}
         <option value="{{ tg.name }}" {{ 'selected' if active_tag == tg.name }}>#{{ tg.name }}</option>
         {% endfor %}
       </select>
       {% endif %}
-      <button class="btn btn-secondary" type="submit">{{ t('btn.filter') }}</button>
-      {% if q or active_status or active_tag %}
-      <a class="btn btn-ghost" href="/">{{ t('btn.clear') }}</a>
-      {% endif %}
+      <select class="input sel" name="status" onchange="this.form.submit()">
+        <option value="">{{ t('filter.all_status') }}</option>
+        {% for st in statuses %}
+        <option value="{{ st }}" {{ 'selected' if active_status == st }}>{{ t('status.' + st) }}</option>
+        {% endfor %}
+      </select>
+      <label for="add-toggle" class="btn btn-primary btn-add">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7.5 2v11M2 7.5h11"/></svg>
+        {{ t('nav.add_board') }}
+      </label>
     </form>
-
-    {% if not boards %}
-    <div class="card">
-      <p class="title-md">{% if q or active_status or active_tag %}{{ t('empty.no_matching_boards_title') }}{% else %}{{ t('empty.no_boards_title') }}{% endif %}</p>
-      <p class="muted">{% if q or active_status or active_tag %}{{ t('empty.try_clear') }}{% else %}{{ t('empty.no_boards_body') }}{% endif %}</p>
-    </div>
-    {% endif %}
-
-    <div class="grid grid-3" id="board-list">
-      {% for board in boards %}
-        {% include "partials/board_card.html" %}
-      {% endfor %}
-    </div>
-
-    {% include "partials/pagination.html" %}
   </div>
-</section>
 
-<section class="section">
-  <div class="container">
-    <div class="cta-band">
-      <div>
-        <h2 class="display-md">{{ t('cta.title') }}</h2>
-        <p style="opacity:.85;max-width:52ch">
-          {{ t('cta.body') }}
-        </p>
+  {% if not boards %}
+  <div class="empty-card">
+    <p class="empty-title">{% if q or active_status or active_tag %}{{ t('empty.no_matching_boards_title') }}{% else %}{{ t('empty.no_boards_title') }}{% endif %}</p>
+    <p class="muted">{% if q or active_status or active_tag %}{{ t('empty.try_clear') }}{% else %}{{ t('empty.no_boards_body') }}{% endif %}</p>
+  </div>
+  {% endif %}
+
+  <div class="board-grid" id="board-list">
+    {% for board in boards %}
+      {% include "partials/board_card.html" %}
+    {% endfor %}
+  </div>
+
+  {% include "partials/pagination.html" %}
+</div>
+
+<!-- add-board modal -->
+<div class="modal-wrap" id="add-modal">
+  <label for="add-toggle" class="modal-backdrop" aria-hidden="true"></label>
+  <div class="modal-box">
+    <div class="modal-head">
+      <h2>{{ t('add.title') }}</h2>
+      <label for="add-toggle" class="modal-x" aria-label="{{ t('btn.clear') }}">&times;</label>
+    </div>
+    <p class="modal-sub">{{ t('hero.subtitle') }}</p>
+    <form method="post" action="/boards" hx-post="/boards" hx-target="#board-list" hx-swap="afterbegin"
+          hx-on::after-request="if(event.detail.successful){this.reset();document.getElementById('add-toggle').checked=false}">
+      <div class="fld-lbl">{{ t('form.board_url') }}</div>
+      <input class="input" name="url" required placeholder="https://www.pinterest.com/user/board/">
+      <div class="fld-lbl" style="margin-top:14px">{{ t('form.session') }}</div>
+      <select class="input" name="credential_id">
+        <option value="">{{ t('form.public_option') }}</option>
+        {% for c in credentials %}
+        <option value="{{ c.id }}">{{ c.name }}{%- if c.status == CredentialStatus.expired %}{{ t('form.expired_suffix') }}{% endif -%}</option>
+        {% endfor %}
+      </select>
+      <div class="modal-actions">
+        <label for="add-toggle" class="btn btn-ghost">{{ t('btn.clear') }}</label>
+        <button class="btn btn-primary" type="submit">{{ t('btn.download_board') }}</button>
       </div>
-      <a class="btn btn-secondary" style="background:var(--canvas);color:var(--on-dark)"
-         href="/settings">{{ t('btn.manage_credentials') }}</a>
-    </div>
+    </form>
   </div>
-</section>
+</div>
 {% endblock %}
