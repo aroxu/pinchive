@@ -679,7 +679,7 @@ img.zoomable, video.zoomable { cursor: zoom-in; }
 .search svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; color: var(--tx3); }
 .search input { width: 210px; height: 40px; padding: 0 12px 0 34px; background: var(--card); border: 1px solid var(--line); border-radius: 11px; color: var(--tx); font-size: 13.5px; outline: none; }
 .search input:focus { border-color: var(--ac); }
-.sel { height: 40px; width: auto; border-radius: 11px; font-size: 13.5px; }
+.head-tools .sel { width: auto; min-width: 132px; height: 40px; border-radius: 11px; font-size: 13.5px; flex: none; }
 .btn-add { display: inline-flex; align-items: center; gap: 7px; height: 40px; padding: 0 18px; border-radius: 11px; cursor: pointer; }
 .empty-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--rad); padding: 40px; text-align: center; }
 .empty-title { font-size: 16px; font-weight: 700; color: var(--tx); margin: 0 0 6px; }
@@ -755,7 +755,7 @@ img.zoomable, video.zoomable { cursor: zoom-in; }
 
 .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding-bottom: 18px; margin-bottom: 20px; border-bottom: 1px solid var(--line); }
 .toolbar .search input { width: 170px; height: 36px; border-radius: 9px; }
-.toolbar .sel { height: 36px; border-radius: 9px; font-size: 13px; }
+.toolbar .sel { width: auto; min-width: 118px; height: 36px; border-radius: 9px; font-size: 13px; flex: none; }
 .seg { display: flex; background: var(--card); border: 1px solid var(--line); border-radius: 9px; padding: 3px; gap: 2px; }
 .seg-b { min-width: 30px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; font-size: 12px; font-weight: 700; color: var(--tx2); text-decoration: none; }
 .seg-b.on { background: var(--ac); color: var(--on-primary); }
