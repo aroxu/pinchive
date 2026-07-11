@@ -739,6 +739,7 @@ img.zoomable, video.zoomable { cursor: zoom-in; }
 }
 
 /* ===== board detail ================================================== */
+.page.detail { max-width: none; }
 .detail { padding-top: 26px; }
 .back { display: inline-flex; align-items: center; gap: 6px; color: var(--tx2); font-size: 13px; text-decoration: none; margin-bottom: 16px; }
 .back:hover { color: var(--tx); }
