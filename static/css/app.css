@@ -850,7 +850,8 @@ img.zoomable, video.zoomable { cursor: zoom-in; }
   .cred-head { display: none; }
   .cred-row { grid-template-columns: 1fr; gap: 8px; }
   .cr-actions { justify-content: flex-start; }
-  .detail-head, .dupes-actions { }
+  .dupes-actions { width: 100%; justify-content: flex-start; gap: 12px; }
+  .dupes-count { text-align: left; margin-right: auto; }
 }
 
 /* ===== settings polish — grouped sections ============================ */
