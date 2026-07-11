@@ -33,17 +33,6 @@ COPY pyproject.toml README.md ./
 COPY app ./app
 RUN pip install --no-cache-dir .
 
-# Optional Playwright fallback: bake in the `refresh` extra + chromium (with its
-# OS deps) only when requested, so the default image stays slim. Browsers go to
-# a shared path readable by the non-root runtime user.
-ARG INSTALL_PLAYWRIGHT=false
-ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-RUN mkdir -p /ms-playwright \
-    && if [ "$INSTALL_PLAYWRIGHT" = "true" ]; then \
-         pip install --no-cache-dir ".[refresh]" \
-         && python -m playwright install --with-deps chromium ; \
-       fi
-
 # Project static + templates first...
 COPY static ./static
 COPY templates ./templates
@@ -62,7 +51,7 @@ ENV PYTHONPATH=/app
 # to this user via gosu — so the app process itself is never root.
 RUN useradd -m -u 10001 pinchive \
     && mkdir -p /data \
-    && chown -R pinchive:pinchive /app /data /ms-playwright
+    && chown -R pinchive:pinchive /app /data
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 

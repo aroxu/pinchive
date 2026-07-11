@@ -37,12 +37,6 @@ class Settings(BaseSettings):
     # cookie so a registered credential stays alive. Default: every 6 hours.
     refresh_cron: str = Field(default="0 */6 * * *")
 
-    # Optional Playwright re-login fallback: when a session is genuinely dead
-    # (server-side logout), try a headless browser login to mint fresh cookies.
-    # Off by default; requires the image built with the browser (INSTALL_PLAYWRIGHT)
-    # and a stored login profile. See docs/credential-refresh.md.
-    use_playwright_fallback: bool = Field(default=False)
-
     # Automatic board re-sync: periodically re-download boards to pick up new
     # pins (cheap — the per-board archive means only new pins are fetched).
     # Boards can opt out individually (Board.auto_resync). Default: daily 04:30.

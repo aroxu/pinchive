@@ -7,7 +7,7 @@
 # It ships the source over SSH (tar, no rsync needed) into the dev checkout and
 # runs `docker compose up --build -d`, which builds the image from the synced
 # source. The dev server's own `.env` (and its data/) are preserved — never
-# overwritten — so its PINCHIVE_IMAGE / INSTALL_PLAYWRIGHT config stays intact.
+# overwritten — so its PINCHIVE_IMAGE config stays intact.
 #
 # After you're happy: commit + push as usual. To realign dev with the pushed
 # image later:  ssh $HOST 'cd ~/$DIR && git reset --hard origin/main &&

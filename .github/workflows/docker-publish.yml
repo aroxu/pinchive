@@ -1,8 +1,7 @@
 name: Publish Docker images
 
-# Publishes two variants to GHCR on every push to main and on version tags:
-#   ghcr.io/<owner>/pinchive:latest       + :<ref>              (slim)
-#   ghcr.io/<owner>/pinchive:playwright   + :<ref>-playwright   (with chromium)
+# Publishes the image to GHCR on every push to main and on version tags:
+#   ghcr.io/<owner>/pinchive:latest       + :<ref>
 
 on:
   push:
@@ -31,7 +30,7 @@ jobs:
         id: ver
         run: echo "version=${GITHUB_REF_NAME//\//-}" >> "$GITHUB_OUTPUT"
 
-      - name: Build & push both variants
+      - name: Build & push image
         uses: docker/bake-action@v5
         with:
           files: docker-bake.hcl

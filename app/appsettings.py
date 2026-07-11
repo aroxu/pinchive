@@ -3,7 +3,7 @@
 Env/config (app.config.Settings) provides the defaults; the Setting DB table
 holds user overrides edited on the /settings page. `effective()` merges them.
 Web routes and worker jobs read effective values per request/job, so most
-changes apply immediately (page sizes, download tuning, playwright fallback).
+changes apply immediately (page sizes, download tuning).
 Cron intervals apply via the gated hourly crons in app.tasks — also live.
 """
 
@@ -18,10 +18,6 @@ from app.db import session_scope
 from app.models import Setting
 
 _base = get_settings()
-
-
-def _as_bool(v) -> bool:
-    return str(v).strip().lower() in ("1", "true", "on", "yes")
 
 
 # --------------------------------------------------------------------------- #
@@ -124,7 +120,6 @@ EDITABLE: dict[str, tuple] = {
     "per_page_boards": (int, 1, 200),
     "per_page_pins": (int, 1, 500),
     "per_page_dupes": (int, 1, 200),
-    "use_playwright_fallback": (_as_bool, None, None),
 }
 
 
@@ -160,13 +155,11 @@ def get(key: str):
 
 
 def save(updates: dict) -> None:
-    """Persist editable overrides. `use_playwright_fallback` is stored as
-    'true'/'false'; unchecked checkbox may be absent -> store 'false'."""
+    """Persist editable overrides. Blank/absent values keep the previous value;
+    a blank cron is allowed (disables the job)."""
     with session_scope() as s:
         for key, (caster, _lo, _hi) in EDITABLE.items():
-            if caster is _as_bool:
-                raw = "true" if _as_bool(updates.get(key, "")) else "false"
-            elif caster is _cron:
+            if caster is _cron:
                 if key not in updates:
                     continue
                 try:

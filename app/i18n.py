@@ -58,7 +58,8 @@ EN = {
     "sidebar.syncing": "Syncing",
     "sidebar.n_boards": "{n} boards",
     "sidebar.n_sessions": "{n} sessions",
-    "sidebar.auth_note": "Cookie auth",
+    "sidebar.n_active": "{n} active",
+    "settings.language": "Language",
     # settings page
     "settings.title": "Settings",
     "settings.automation": "Automation",
@@ -69,7 +70,6 @@ EN = {
     "settings.concurrency": "Concurrent downloads",
     "settings.timeout": "Per-pin stall timeout",
     "settings.page_sizes": "Page sizes (boards / pins / dupes)",
-    "settings.playwright": "Playwright re-login fallback",
     "settings.queue": "Task queue",
     "settings.every_hours": "every {n}h",
     "settings.disabled": "disabled",
@@ -100,7 +100,6 @@ EN = {
     "settings.schedules": "Schedules",
     "settings.g_download": "Download",
     "settings.g_display": "Display · page sizes",
-    "settings.g_fallback": "Session fallback",
     "settings.concurrency_help": (
         "How many boards the worker downloads in parallel. This is a startup "
         "setting: set PINCHIVE_MAX_CONCURRENCY in your .env and restart the worker."
@@ -114,8 +113,6 @@ EN = {
     "settings.per_page_boards_desc": "Boards shown per page.",
     "settings.per_page_pins_desc": "Pins shown per page.",
     "settings.per_page_dupes_desc": "Duplicate groups shown per page.",
-    "settings.playwright_desc": "When a session is truly dead, try a headless-browser "
-                               "re-login (needs the :playwright image).",
     "footer.tagline": "Self-hosted Pinterest board archiver · inspired by TubeArchivist",
     # hero
     "hero.badge": "Self-hosted",
@@ -273,7 +270,8 @@ KO = {
     "sidebar.syncing": "동기화 중",
     "sidebar.n_boards": "{n}개 보드",
     "sidebar.n_sessions": "{n}개 세션",
-    "sidebar.auth_note": "쿠키 인증",
+    "sidebar.n_active": "{n}개 활성",
+    "settings.language": "언어",
     "settings.title": "설정",
     "settings.automation": "자동화",
     "settings.env_note": "환경변수(.env)로 설정하며 재시작 시 적용됩니다.",
@@ -283,7 +281,6 @@ KO = {
     "settings.concurrency": "동시 다운로드 수",
     "settings.timeout": "핀 stall 제한시간",
     "settings.page_sizes": "페이지 크기 (보드 / 핀 / 중복)",
-    "settings.playwright": "Playwright 재로그인 fallback",
     "settings.queue": "작업 큐",
     "settings.every_hours": "{n}시간마다",
     "settings.disabled": "비활성",
@@ -314,7 +311,6 @@ KO = {
     "settings.schedules": "예약",
     "settings.g_download": "다운로드",
     "settings.g_display": "표시 · 페이지 크기",
-    "settings.g_fallback": "세션 폴백",
     "settings.concurrency_help": (
         "워커가 동시에 다운로드하는 보드 수입니다. 시작 시 설정값이라 .env 의 "
         "PINCHIVE_MAX_CONCURRENCY 를 바꾸고 워커를 재시작해야 적용됩니다."
@@ -328,8 +324,6 @@ KO = {
     "settings.per_page_boards_desc": "페이지당 표시할 보드 수.",
     "settings.per_page_pins_desc": "페이지당 표시할 핀 수.",
     "settings.per_page_dupes_desc": "페이지당 표시할 중복 그룹 수.",
-    "settings.playwright_desc": "세션이 완전히 죽으면 헤드리스 브라우저로 재로그인 시도"
-                               "(:playwright 이미지 필요).",
     "footer.tagline": "셀프호스팅 Pinterest 보드 아카이버 · TubeArchivist 에서 영감",
     "hero.badge": "셀프호스팅",
     "hero.title_1": "어떤 Pinterest",

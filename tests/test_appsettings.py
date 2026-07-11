@@ -17,12 +17,10 @@ def test_save_and_effective_override():
     appsettings.save({
         "per_page_boards": "7",
         "pin_stall_timeout": "120",
-        "use_playwright_fallback": "true",
     })
     eff = appsettings.effective()
     assert eff["per_page_boards"] == 7
     assert eff["pin_stall_timeout"] == 120
-    assert eff["use_playwright_fallback"] is True
 
 
 def test_save_clamps_and_ignores_blank():
@@ -31,13 +29,6 @@ def test_save_clamps_and_ignores_blank():
     appsettings.save({"per_page_pins": ""})         # blank -> unchanged
     assert appsettings.effective()["per_page_pins"] == \
         appsettings.defaults()["per_page_pins"]
-
-
-def test_bool_unchecked_saves_false():
-    appsettings.save({"use_playwright_fallback": "true"})
-    assert appsettings.effective()["use_playwright_fallback"] is True
-    appsettings.save({})  # checkbox absent -> stored false
-    assert appsettings.effective()["use_playwright_fallback"] is False
 
 
 def test_cron_matches():

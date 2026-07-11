@@ -5,7 +5,6 @@
 #   docker compose -f compose.prod.yaml up -d          # open http://localhost:8000
 #
 # Pin a version:            PINCHIVE_TAG=v0.1.0 docker compose -f compose.prod.yaml up -d
-# Browser re-login variant: PINCHIVE_TAG=playwright  (or v0.1.0-playwright)
 # Update:                   docker compose -f compose.prod.yaml pull && ... up -d
 #
 # Data (db, boards, cookies) persists in ./data. Put PINCHIVE_* overrides in .env.

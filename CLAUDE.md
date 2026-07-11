@@ -18,8 +18,6 @@ as a small Docker stack on modest hardware.
 - **SQLite (WAL)** via **SQLModel** for metadata; **arq + Redis** for the async worker and
   gated hourly crons.
 - **Pillow** for perceptual-hash duplicate detection (no numpy).
-- **Playwright** is an *optional* headless re-login fallback (heavy ~300MB), shipped as a
-  separate image variant — off by default.
 - Hand-written CSS design tokens (no Tailwind). See "Design" below.
 
 Rationale lives in memory `pinchive-stack.md`.
@@ -39,7 +37,6 @@ app/
   downloader.py    build_command / run_download (line parsing, per-pin stall guard),
                    scan_media, extract_board_name
   dedup.py         sha256 + 256-bit dHash + banded-LSH grouping
-  refresh_browser.py  Playwright relogin(cred_id) with success verification
   i18n.py          EN/KO catalogs, t(), locale resolution
 templates/         base, index, board_detail, duplicates, settings + partials/
 scripts/           deploy-dev.sh, fetch_assets.{sh,ps1}
@@ -76,7 +73,6 @@ Defined in `app/config.py`. Many are also **runtime-editable** from the Settings
 | `DL_SLEEP` | 0.8 | polite delay between requests (editable) |
 | `PIN_STALL_TIMEOUT` | 600 | per-pin no-data abort in seconds; **no overall board timeout** (editable) |
 | `REFRESH_CRON` | `0 */6 * * *` | cookie keep-alive schedule (crontab; empty disables) (editable) |
-| `USE_PLAYWRIGHT_FALLBACK` | false | try headless re-login when a session is truly dead (editable) |
 | `RESYNC_CRON` | `30 4 * * *` | board auto-resync schedule (crontab; empty disables) (editable) |
 | `DEDUP_CRON` | `45 */6 * * *` | duplicate recompute schedule (crontab; empty disables) (editable) |
 | `PER_PAGE_BOARDS/PINS/DUPES` | 24/60/20 | UI page sizes (editable) |
@@ -85,8 +81,8 @@ Defined in `app/config.py`. Many are also **runtime-editable** from the Settings
 
 - **Credential keep-alive**: a cron re-hits Pinterest and persists the rotated
   `Set-Cookie` so a registered credential stays alive. Liveness is heuristic
-  (`"is_authenticated"` page flag). Optional Playwright fallback mints fresh cookies
-  when the session is truly dead.
+  (`"is_authenticated"` page flag). A session Pinterest has killed server-side is
+  flagged `expired` — recovery means re-pasting fresh cookies.
 - **No board timeout**: `job_timeout = 7 days`. Instead each file has a per-pin stall
   guard (`downloader.http.timeout`). Interrupted downloads (status downloading/queued/
   pending) are **re-enqueued on worker startup** (`_resume_interrupted`).
@@ -122,8 +118,7 @@ Korean: **Noto Sans KR (본고딕)** primary, **Pretendard** fallback.
 ## Docker / deploy
 
 - Multi-stage Dockerfile (assets fetch + runtime), tini → entrypoint → gosu.
-- **Two image variants** via `docker-bake.hcl`: `slim` (`:latest`, no browser) and
-  `playwright` (`:playwright`, INSTALL_PLAYWRIGHT=true). Published to
+- **Single image** via `docker-bake.hcl` (`slim` target → `:latest`). Published to
   `ghcr.io/<repo>` by `.github/workflows/docker-publish.yml`.
 - **Dev-first workflow**: deploy the *local working tree* to the dev server, verify, then
   commit. `bash scripts/deploy-dev.sh` tars the tree (excluding .git/.env/data/.venv/…),
@@ -133,7 +128,6 @@ Korean: **Noto Sans KR (본고딕)** primary, **Pretendard** fallback.
 
 ## Constraints for assistants
 
-- **Never** use or ask for the user's real Pinterest password. Use dummy creds for any
-  Playwright test.
+- **Never** use or ask for the user's real Pinterest password.
 - Avoid `-ExecutionPolicy Bypass` (blocked by the sandbox as a security-weakening flag).
 - Commit only at logical milestones; the user often wants dev verification first.

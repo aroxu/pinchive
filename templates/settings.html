@@ -77,26 +77,24 @@
         </div>
       </div>
 
-      <div class="set-group">
-        <div class="set-sub"><span class="set-sub-t">{{ t('settings.g_fallback') }}</span></div>
-        <div class="set-row">
-          <div>
-            <div class="set-row-t">{{ t('settings.playwright') }}</div>
-            <div class="set-row-d">{{ t('settings.playwright_desc') }}</div>
-          </div>
-          <label class="switch">
-            <input type="checkbox" name="use_playwright_fallback" value="true" {{ 'checked' if eff.use_playwright_fallback }}>
-            <span class="track"><span class="knob"></span></span>
-          </label>
-        </div>
+      <div class="set-foot">
+        <div><div class="sf-lbl">{{ t('settings.concurrency') }}</div><div class="set-foot-v">{{ cfg.max_concurrency }} <span class="muted">· {{ t('settings.concurrency_env') }}</span></div></div>
+        <div><div class="sf-lbl">{{ t('settings.queue') }}</div><div class="set-foot-v"><span class="q-dot {{ 'on' if queue_up else 'off' }}"></span>{{ t('settings.on') if queue_up else t('settings.off') }}</div></div>
       </div>
 
       <div class="save-row"><button class="btn btn-primary" type="submit">{{ t('settings.save') }}</button></div>
     </form>
+  </section>
 
-    <div class="set-foot">
-      <div><div class="sf-lbl">{{ t('settings.concurrency') }}</div><div class="set-foot-v">{{ cfg.max_concurrency }} <span class="muted">· {{ t('settings.concurrency_env') }}</span></div></div>
-      <div><div class="sf-lbl">{{ t('settings.queue') }}</div><div class="set-foot-v"><span class="q-dot {{ 'on' if queue_up else 'off' }}"></span>{{ t('settings.on') if queue_up else t('settings.off') }}</div></div>
+  <!-- language -->
+  <section class="set-card">
+    <div class="set-lang">
+      <h2>{{ t('settings.language') }}</h2>
+      <div class="sb-lang">
+        {% for lc in SUPPORTED_LANGS %}
+        <a class="lang-opt {{ 'active' if get_locale() == lc }}" href="?lang={{ lc }}" rel="nofollow">{{ LANG_NAMES[lc] }}</a>
+        {% endfor %}
+      </div>
     </div>
   </section>
 

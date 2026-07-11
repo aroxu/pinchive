@@ -48,16 +48,8 @@
       {% endif %}
 
       <div class="sb-foot">
-        <div class="sb-avatar">P</div>
-        <div class="sb-foot-txt">
-          <div class="sb-foot-a">{{ t('sidebar.n_sessions', n=sb.creds) }}</div>
-          <div class="sb-foot-b">{{ t('sidebar.auth_note') }}</div>
-        </div>
-      </div>
-      <div class="sb-lang">
-        {% for lc in SUPPORTED_LANGS %}
-        <a class="lang-opt {{ 'active' if get_locale() == lc }}" href="?lang={{ lc }}" rel="nofollow">{{ LANG_NAMES[lc] }}</a>
-        {% endfor %}
+        <div class="sb-foot-a">{{ t('sidebar.n_sessions', n=sb.creds) }}</div>
+        <div class="sb-foot-b">{{ t('sidebar.n_active', n=sb.creds_active) }}</div>
       </div>
     </aside>
 

@@ -293,11 +293,6 @@ async def refresh_credential(ctx: dict, cred_id: int) -> dict:
         cred.last_error = None if res.active else res.message
         cred.updated_at = _now()
 
-    # Session truly dead (server-side logout / long inactivity). Cookie rotation
-    # can't help here — only a full re-login can, if configured.
-    if not res.active and appsettings.get("use_playwright_fallback"):
-        await _attempt_auto_refresh(cred_id)
-
     return {"active": res.active, "message": res.message, "rotated": res.rotated}
 
 
@@ -456,19 +451,6 @@ async def resync_all_boards(ctx: dict) -> dict:
                 b.updated_at = _now()
         await pool.enqueue_job("download_board", bid)
     return {"enqueued": len(ids)}
-
-
-async def _attempt_auto_refresh(cred_id: int) -> None:
-    """Optional Playwright re-login. No-op unless the extra is installed and a
-    stored account/password profile exists. Intentionally soft-failing."""
-    try:
-        from app.refresh_browser import relogin  # type: ignore
-    except ImportError:
-        return
-    try:
-        await relogin(cred_id)
-    except Exception:  # noqa: BLE001 — never let refresh crash the worker
-        return
 
 
 # --------------------------------------------------------------------------- #

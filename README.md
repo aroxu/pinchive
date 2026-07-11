@@ -32,16 +32,15 @@ Downloads land in `./data/boards/<slug>/`; the SQLite db in `./data/pinchive.db`
 
 ## Docker images
 
-Two published variants (built from the one Dockerfile via
+One published image (built from the Dockerfile via
 [docker-bake.hcl](docker-bake.hcl), pushed to GHCR by
 [the CI workflow](.github/workflows/docker-publish.yml)):
 
 | Tag | Contents | Size | Use |
 |---|---|---|---|
-| `ghcr.io/aroxu/pinchive:latest` | slim (no browser) | ~1 GB | default |
-| `ghcr.io/aroxu/pinchive:playwright` | + chromium | ~1.4 GB | auto re-login fallback |
+| `ghcr.io/aroxu/pinchive:latest` | app + gallery-dl | ~1 GB | default |
 
-Version tags (`:v0.1.0`, `:v0.1.0-playwright`) are published from `v*` git tags.
+Version tags (`:v0.1.0`) are published from `v*` git tags.
 
 ### Run from a published image (no checkout)
 
@@ -51,11 +50,11 @@ curl -fsSLO https://raw.githubusercontent.com/aroxu/pinchive/main/compose.prod.y
 docker compose -f compose.prod.yaml up -d      # open http://localhost:8000
 ```
 
-Pin a version or variant with `PINCHIVE_TAG` (`v0.1.0`, `playwright`,
-`v0.1.0-playwright`); update with `docker compose -f compose.prod.yaml pull && … up -d`.
-From a clone you can instead set `PINCHIVE_IMAGE` in `.env` and
-`docker compose pull && docker compose up -d`, or build both variants locally
-with `docker buildx bake`.
+Pin a version with `PINCHIVE_TAG` (`v0.1.0`); update with
+`docker compose -f compose.prod.yaml pull && … up -d`. From a clone you can
+instead set `PINCHIVE_IMAGE` in `.env` and
+`docker compose pull && docker compose up -d`, or build locally with
+`docker buildx bake`.
 
 > **Make the images public** (GHCR packages start private). After the first
 > publish, once: `github.com/users/aroxu/packages` → *pinchive* → *Package
@@ -78,23 +77,8 @@ Only `_pinterest_sess` is strictly required.
 `_pinterest_sess` back to disk** — so a registered session stays alive on its
 own as long as Pinterest keeps sliding it, no re-pasting. Liveness is judged by
 the page's `is_authenticated` flag; a session that has genuinely been logged out
-server-side is flagged expired in the UI (and only a full re-login can recover
-it — see below).
-
-### Optional Playwright re-login fallback
-
-For sessions that die server-side (rotation can't help there), an opt-in
-headless-browser re-login can mint fresh cookies. Off by default. Enable via two
-`.env` switches and a rebuild:
-
-```dotenv
-INSTALL_PLAYWRIGHT=true                 # build: bake chromium into the image
-PINCHIVE_USE_PLAYWRIGHT_FALLBACK=true   # run:  attempt re-login on a dead session
-```
-
-Best-effort only — captcha/2FA will defeat it, and it stores a password on disk.
-Full setup (login profile, local install, switch matrix):
-**[docs/credential-refresh.md](docs/credential-refresh.md)**.
+server-side is flagged expired in the UI, and recovering it means pasting fresh
+cookies for that credential.
 
 ## Organizing your archive
 

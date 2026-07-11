@@ -12,15 +12,12 @@ services:
       retries: 5
 
   web:
-    # Pull a published variant by setting PINCHIVE_IMAGE (e.g.
-    #   PINCHIVE_IMAGE=ghcr.io/aroxu/pinchive:playwright) then `docker compose up -d`.
-    # Or build locally with `docker compose up --build` (INSTALL_PLAYWRIGHT toggles
-    # the browser into the local build).
+    # Pull the published image by setting PINCHIVE_IMAGE (e.g.
+    #   PINCHIVE_IMAGE=ghcr.io/aroxu/pinchive:latest) then `docker compose up -d`,
+    # or build locally with `docker compose up --build`.
     image: ${PINCHIVE_IMAGE:-pinchive:latest}
     build:
       context: .
-      args:
-        INSTALL_PLAYWRIGHT: ${INSTALL_PLAYWRIGHT:-false}
     restart: unless-stopped
     env_file:
       - path: .env

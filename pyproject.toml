@@ -23,9 +23,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Optional automatic cookie refresh via a headless browser.
-# Heavy (~300MB). Only install if you want unattended re-login.
-refresh = ["playwright>=1.44"]
 dev = ["ruff>=0.5", "pytest>=8"]
 
 [build-system]

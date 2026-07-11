@@ -131,6 +131,10 @@ def _sidebar_counts() -> dict:
     with session_scope() as s:
         boards = s.exec(select(func.count()).select_from(Board)).one()
         creds = s.exec(select(func.count()).select_from(Credential)).one()
+        creds_active = s.exec(
+            select(func.count()).select_from(Credential)
+            .where(Credential.status == CredentialStatus.active)
+        ).one()
         syncing = s.exec(
             select(func.count()).select_from(Board)
             .where(Board.status.in_(list(ACTIVE_STATUSES)))
@@ -140,7 +144,8 @@ def _sidebar_counts() -> dict:
             select(func.count()).select_from(Pin).where(Pin.dup_group.is_not(None))
         ).one()
     return {
-        "boards": boards, "creds": creds, "syncing": syncing,
+        "boards": boards, "creds": creds, "creds_active": creds_active,
+        "syncing": syncing,
         "removable": max(0, in_groups - len(gids)),
     }
 

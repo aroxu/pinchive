@@ -1,10 +1,7 @@
-// Two published image variants from the one Dockerfile:
-//   slim        -> default, no browser (INSTALL_PLAYWRIGHT=false)   ~1 GB
-//   playwright  -> bundles chromium for the re-login fallback        ~1.4 GB
+// Single published image built from the Dockerfile (~1 GB, no browser).
 //
-// Local:   docker buildx bake                 (builds both, no push)
-//          docker buildx bake slim            (just the slim one)
-//          docker buildx bake --push          (push both; needs REGISTRY login)
+// Local:   docker buildx bake              (build, no push)
+//          docker buildx bake --push       (push; needs REGISTRY login)
 // CI sets REGISTRY + VERSION; see .github/workflows/docker-publish.yml
 
 variable "REGISTRY" {
@@ -16,33 +13,15 @@ variable "VERSION" {
 }
 
 group "default" {
-  targets = ["slim", "playwright"]
-}
-
-target "_common" {
-  context    = "."
-  dockerfile = "Dockerfile"
-  platforms  = ["linux/amd64"]
+  targets = ["slim"]
 }
 
 target "slim" {
-  inherits = ["_common"]
-  args = {
-    INSTALL_PLAYWRIGHT = "false"
-  }
+  context    = "."
+  dockerfile = "Dockerfile"
+  platforms  = ["linux/amd64"]
   tags = [
     "${REGISTRY}:latest",
     "${REGISTRY}:${VERSION}",
-  ]
-}
-
-target "playwright" {
-  inherits = ["_common"]
-  args = {
-    INSTALL_PLAYWRIGHT = "true"
-  }
-  tags = [
-    "${REGISTRY}:playwright",
-    "${REGISTRY}:${VERSION}-playwright",
   ]
 }
