@@ -23,9 +23,11 @@ SQLite + gallery-dl, no Node build, no Elasticsearch.
 
 ```bash
 cp .env.example .env
-docker compose up --build -d
+docker compose -f docker-compose.yml up --build -d   # build from this clone
 # open http://localhost:8000
 ```
+
+Or just pull the published image (no build): `docker compose up -d`.
 
 `web` serves the UI, `worker` runs downloads, `redis` is the job broker.
 Downloads land in `./data/boards/<slug>/`; the SQLite db in `./data/pinchive.db`.
@@ -36,9 +38,9 @@ One published image (built from the Dockerfile via
 [docker-bake.hcl](docker-bake.hcl), pushed to GHCR by
 [the CI workflow](.github/workflows/docker-publish.yml)):
 
-| Tag | Contents | Size | Use |
-|---|---|---|---|
-| `ghcr.io/aroxu/pinchive:latest` | app + gallery-dl | ~1 GB | default |
+| Tag | Contents | Size | Arch | Use |
+|---|---|---|---|---|
+| `ghcr.io/aroxu/pinchive:latest` | app + gallery-dl | ~1 GB | amd64 · arm64 | default |
 
 Version tags (`:v0.1.0`) are published from `v*` git tags.
 
@@ -46,15 +48,13 @@ Version tags (`:v0.1.0`) are published from `v*` git tags.
 
 ```bash
 mkdir pinchive && cd pinchive
-curl -fsSLO https://raw.githubusercontent.com/aroxu/pinchive/main/compose.prod.yaml
-docker compose -f compose.prod.yaml up -d      # open http://localhost:8000
+curl -fsSLO https://raw.githubusercontent.com/aroxu/pinchive/main/compose.yaml
+docker compose up -d      # open http://localhost:8000
 ```
 
 Pin a version with `PINCHIVE_TAG` (`v0.1.0`); update with
-`docker compose -f compose.prod.yaml pull && … up -d`. From a clone you can
-instead set `PINCHIVE_IMAGE` in `.env` and
-`docker compose pull && docker compose up -d`, or build locally with
-`docker buildx bake`.
+`docker compose pull && docker compose up -d`. To build from a clone instead,
+use `docker compose -f docker-compose.yml up --build -d`, or `docker buildx bake`.
 
 > **Make the images public** (GHCR packages start private). After the first
 > publish, once: `github.com/users/aroxu/packages` → *pinchive* → *Package

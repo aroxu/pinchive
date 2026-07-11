@@ -1,13 +1,17 @@
-# Production stack — runs the published GHCR image, no source checkout or build.
+# Default stack — runs the published multi-arch GHCR image (amd64 + arm64).
+# This is the file `docker compose` picks up automatically, so:
 #
-#   mkdir pinchive && cd pinchive
-#   curl -fsSLO https://raw.githubusercontent.com/aroxu/pinchive/main/compose.prod.yaml
-#   docker compose -f compose.prod.yaml up -d          # open http://localhost:8000
+#   cp .env.example .env          # optional: PINCHIVE_* overrides
+#   docker compose up -d          # open http://localhost:8000
 #
-# Pin a version:            PINCHIVE_TAG=v0.1.0 docker compose -f compose.prod.yaml up -d
-# Update:                   docker compose -f compose.prod.yaml pull && ... up -d
+#   Pin a version:  PINCHIVE_TAG=v0.1.0 docker compose up -d
+#   Update:         docker compose pull && docker compose up -d
 #
-# Data (db, boards, cookies) persists in ./data. Put PINCHIVE_* overrides in .env.
+# No checkout needed — grab just this file:
+#   curl -fsSLO https://raw.githubusercontent.com/aroxu/pinchive/main/compose.yaml
+#
+# Data (db, boards, cookies) persists in ./data.
+# To build from a source clone instead, use: docker compose -f docker-compose.yml up --build -d
 
 services:
   redis:

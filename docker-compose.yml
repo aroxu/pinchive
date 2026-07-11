@@ -1,3 +1,11 @@
+# Local-build stack — builds the image from this source tree.
+# `compose.yaml` is the auto-picked default (pulls the published image), so
+# invoke this one explicitly:
+#
+#   docker compose -f docker-compose.yml up --build -d
+#
+# Or pull a published image here too by setting PINCHIVE_IMAGE in .env.
+
 services:
   redis:
     image: redis:7-alpine
