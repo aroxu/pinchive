@@ -852,6 +852,13 @@ img.zoomable, video.zoomable { cursor: zoom-in; }
   .cr-actions { justify-content: flex-start; }
   .dupes-actions { width: 100%; justify-content: flex-start; gap: 12px; }
   .dupes-count { text-align: left; margin-right: auto; }
+  /* narrower pin columns on phones so the masonry isn't a single column */
+  .masonry.view-s { column-width: 108px; }
+  .masonry.view-m { column-width: 150px; }
+  .masonry.view-l { column-width: 200px; }
+  .set-head { flex-wrap: wrap; }
+  .toolbar .search { flex: 1 1 100%; }
+  .toolbar .search input { width: 100%; }
 }
 
 /* ===== settings polish — grouped sections ============================ */
