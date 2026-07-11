@@ -19,7 +19,7 @@ group "default" {
 target "slim" {
   context    = "."
   dockerfile = "Dockerfile"
-  platforms  = ["linux/amd64"]
+  platforms  = ["linux/amd64", "linux/arm64"]
   tags = [
     "${REGISTRY}:latest",
     "${REGISTRY}:${VERSION}",
