@@ -33,6 +33,7 @@ services:
       - path: .env
         required: false
     environment:
+      TZ: ${TZ:-UTC}
       PINCHIVE_REDIS_URL: redis://redis:6379
       PINCHIVE_DATA_DIR: /data
     ports:
@@ -51,6 +52,7 @@ services:
       - path: .env
         required: false
     environment:
+      TZ: ${TZ:-UTC}
       PINCHIVE_REDIS_URL: redis://redis:6379
       PINCHIVE_DATA_DIR: /data
     volumes:

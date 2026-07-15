@@ -20,6 +20,7 @@ dependencies = [
     "pillow>=10.0",    # perceptual dHash for duplicate detection
     "httpx>=0.27",
     "pydantic-settings>=2.3",
+    "tzdata>=2025.2",  # IANA timezone database for TZ-based web display
 ]
 
 [project.optional-dependencies]

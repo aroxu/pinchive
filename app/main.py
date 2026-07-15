@@ -21,6 +21,7 @@ from sqlalchemy import func, or_
 from sqlmodel import Session, select
 
 from app import appsettings, auth, i18n
+from app.timefmt import format_datetime
 from app.config import get_settings
 from app.db import get_session, init_db
 from app.models import (
@@ -107,6 +108,7 @@ templates.env.globals["t"] = i18n.t
 templates.env.globals["get_locale"] = i18n.get_locale
 templates.env.globals["SUPPORTED_LANGS"] = i18n.SUPPORTED
 templates.env.globals["LANG_NAMES"] = i18n.LANG_NAMES
+templates.env.globals["format_datetime"] = format_datetime
 
 
 @lru_cache(maxsize=64)
