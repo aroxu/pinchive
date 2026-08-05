@@ -4,6 +4,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 from app import dedup, downloader
 
 
@@ -16,6 +18,8 @@ def test_build_command_minimal():
     assert "--cookies" not in cmd
     assert "--download-archive" not in cmd
     assert "sleep-request" not in " ".join(cmd)
+    assert "--Print" in cmd
+    assert "post:__PINCHIVE_PIN_ID__:{id}" in cmd
     assert cmd[-1].endswith("/b/")
 
 
@@ -30,6 +34,45 @@ def test_build_command_full():
     assert "extractor.pinterest.sleep-request=0.8" in j
     assert "extractor.pinterest.videos=true" in j
     assert "downloader.http.timeout=600" in j  # per-pin stall guard
+
+
+def test_build_command_checkpoint_aborts_cleanly(capsys):
+    from gallery_dl import exception, util
+
+    cmd = downloader.build_command(
+        "https://p/", Path("/dest"), cookies_file=None, archive_file=None,
+        sleep=0, stop_pin_ids={"42", "99"},
+    )
+    expr = cmd[cmd.index("--post-filter") + 1]
+    predicate = util.compile_filter(expr)
+
+    assert predicate({"id": "100"}) is True
+    with pytest.raises(exception.StopExtraction):
+        predicate({"id": "42"})
+    assert "__PINCHIVE_CHECKPOINT__:42" in capsys.readouterr().out
+
+
+def test_run_download_parses_feed_and_checkpoint_markers(tmp_path, monkeypatch):
+    class FakeProcess:
+        stdout = iter([
+            "__PINCHIVE_PIN_ID__:900\n",
+            "# /dest/pinterest_900.jpg\n",
+            "__PINCHIVE_PIN_ID__:899\n",
+            "__PINCHIVE_CHECKPOINT__:800\n",
+        ])
+
+        def wait(self):
+            return 0
+
+    monkeypatch.setattr(downloader.subprocess, "Popen", lambda *a, **kw: FakeProcess())
+    result = downloader.run_download(
+        "https://p/", tmp_path / "board", sleep=0, stop_pin_ids={"800"}
+    )
+
+    assert result.seen_pin_ids == ["900", "899"]
+    assert result.stopped_at_checkpoint is True
+    assert result.stop_pin_id == "800"
+    assert result.skipped == 1 and result.ok
 
 
 def test_scan_media_image_with_sidecar_and_hashes(tmp_path, make_image):
@@ -109,3 +152,20 @@ def test_scan_media_light_skips_hashes_and_sidecar(tmp_path, make_image):
     assert m.media_type == "image" and m.filename == "x.jpg"
     assert m.content_sha256 is None and m.phash is None
     assert m.title is None  # sidecar skipped
+
+
+def test_scan_media_hashes_only_new_incremental_files(tmp_path, make_image):
+    import shutil
+
+    dest = tmp_path / "b"
+    dest.mkdir()
+    shutil.copy(make_image(seed=1), dest / "old.jpg")
+    shutil.copy(make_image(seed=2), dest / "new.jpg")
+
+    items = downloader.scan_media(
+        dest, with_hashes=False, hash_rel_paths={"new.jpg"}
+    )
+    by_name = {item.filename: item for item in items}
+    assert by_name["old.jpg"].content_sha256 is None
+    assert by_name["new.jpg"].content_sha256 is not None
+    assert by_name["new.jpg"].phash is not None

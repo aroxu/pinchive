@@ -5,6 +5,8 @@ crashing extractor from taking down the worker, and the CLI's stdout gives us a
 line-per-file stream we can turn into live progress.
 
 Output contract (default verbosity, stderr merged into stdout):
+  * `__PINCHIVE_PIN_ID__:<id>`  a Pinterest post before its files are handled
+  * `__PINCHIVE_CHECKPOINT__:<id>`  an incremental-sync stop checkpoint
   * `<path>`        a file that was just downloaded
   * `# <path>`      a file skipped (already present / in the archive)
   * `[scope][lvl] …`  a log line (warnings, errors) — collected, not counted
@@ -34,6 +36,13 @@ logger = logging.getLogger("pinchive.download")
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
 VIDEO_EXTS = {".mp4", ".webm", ".mov", ".mkv", ".m4v"}
 MEDIA_EXTS = IMAGE_EXTS | VIDEO_EXTS
+
+# gallery-dl's uppercase --Print keeps downloading while emitting metadata.
+# Print once per Pinterest post (not once per carousel file) so the worker can
+# store a stable feed-order checkpoint without parsing filenames.
+SYNC_CHECKPOINT_SIZE = 10
+_PIN_MARKER = "__PINCHIVE_PIN_ID__:"
+_CHECKPOINT_MARKER = "__PINCHIVE_CHECKPOINT__:"
 
 # Pinterest returns 403 for some `i.pinimg.com/originals/…` images (originals are
 # selectively blocked) while serving the SAME picture at a sized CDN path. When
@@ -99,6 +108,9 @@ class DownloadResult:
     log_tail: str = ""
     media: list["MediaItem"] = field(default_factory=list)
     board_name: str | None = None  # real Pinterest board name from metadata
+    seen_pin_ids: list[str] = field(default_factory=list)
+    stopped_at_checkpoint: bool = False
+    stop_pin_id: str | None = None
 
     @property
     def ok(self) -> bool:
@@ -106,7 +118,8 @@ class DownloadResult:
 
     @property
     def partial(self) -> bool:
-        return self.downloaded > 0 and (self.errors > 0 or self.returncode != 0)
+        made_progress = self.downloaded > 0 or self.stopped_at_checkpoint
+        return made_progress and (self.errors > 0 or self.returncode != 0)
 
 
 @dataclass
@@ -133,6 +146,7 @@ def build_command(
     archive_file: Path | None,
     sleep: float,
     stall_timeout: float = 600.0,
+    stop_pin_ids: set[str] | None = None,
 ) -> list[str]:
     # Invoke via the current interpreter so we don't depend on gallery-dl being
     # on PATH (venv on Windows, /usr/local/bin in the container).
@@ -154,7 +168,23 @@ def build_command(
         # If a single file stalls (no data) this long, abort just that file and
         # move on to the next pin — no overall board timeout.
         "-o", f"downloader.http.timeout={stall_timeout}",
+        # Emit one structured line for each pin in Pinterest feed order. The
+        # first ten become the next incremental-sync checkpoint.
+        "--Print", f"post:{_PIN_MARKER}{{id}}",
     ]
+    checkpoint_ids = tuple(sorted({str(pid) for pid in stop_pin_ids or () if pid}))
+    if checkpoint_ids:
+        # Pinterest board posts arrive newest-first. `post-filter` runs before
+        # any media belonging to that pin, so aborting here avoids walking the
+        # rest of the board and avoids requesting the old pin's media. abort()
+        # raises gallery-dl StopExtraction, which is a normal exit (code 0).
+        # The marker distinguishes this from reaching the end of a board whose
+        # old checkpoint pins have since all been removed.
+        expr = (
+            f"str(id) not in {checkpoint_ids!r} or "
+            f"(print({_CHECKPOINT_MARKER!r} + str(id), flush=True), abort())[1]"
+        )
+        cmd += ["--post-filter", expr]
     if sleep > 0:
         cmd += ["-o", f"extractor.pinterest.sleep-request={sleep}"]
     if cookies_file is not None:
@@ -178,6 +208,7 @@ def run_download(
     progress_every: int = 5,
     log_maxlen: int = 60,
     blocked: set[str] | None = None,
+    stop_pin_ids: set[str] | None = None,
 ) -> DownloadResult:
     dest.mkdir(parents=True, exist_ok=True)
     # A container restart mid-download can leave yt-dlp/gallery-dl temp files
@@ -187,7 +218,7 @@ def run_download(
     _clean_partials(dest)
     cmd = build_command(
         url, dest, cookies_file=cookies_file, archive_file=archive_file,
-        sleep=sleep, stall_timeout=stall_timeout,
+        sleep=sleep, stall_timeout=stall_timeout, stop_pin_ids=stop_pin_ids,
     )
 
     prog = Progress()
@@ -207,9 +238,32 @@ def run_download(
     since_flush = 0
     pending_403: list[str] = []                 # originals URLs 403'd for cur file
     fallback_tasks: list[tuple[str, str]] = []  # (filename, orig_url) to recover
+    downloaded_rel_paths: set[str] = set()
+    seen_pin_ids: list[str] = []
+    seen_pin_set: set[str] = set()
+    stopped_at_checkpoint = False
+    stop_pin_id: str | None = None
     for raw in proc.stdout:
         line = raw.rstrip("\n")
         if not line.strip():
+            continue
+        if line.startswith(_PIN_MARKER):
+            pin_id = line[len(_PIN_MARKER):].strip()
+            if (
+                pin_id
+                and pin_id not in seen_pin_set
+                and len(seen_pin_ids) < SYNC_CHECKPOINT_SIZE
+            ):
+                seen_pin_set.add(pin_id)
+                seen_pin_ids.append(pin_id)
+            continue
+        if line.startswith(_CHECKPOINT_MARKER):
+            stop_pin_id = line[len(_CHECKPOINT_MARKER):].strip() or None
+            stopped_at_checkpoint = True
+            logger.info(
+                "board checkpoint %s reached; incremental scan stopped",
+                stop_pin_id or "(unknown)",
+            )
             continue
         if line.startswith("# "):
             prog.skipped += 1
@@ -246,6 +300,8 @@ def run_download(
             prog.downloaded += 1
             prog.last_line = line
             pending_403 = []
+            if rel_path := _output_rel_path(dest, line):
+                downloaded_rel_paths.add(rel_path)
             logger.info("ok   · %s", line)
         since_flush += 1
         if on_progress and since_flush >= progress_every:
@@ -262,6 +318,7 @@ def run_download(
         for name, orig_url in fallback_tasks:
             if _fetch_sized_fallback(dest, name, orig_url):
                 recovered += 1
+                downloaded_rel_paths.add(Path(name).with_suffix(".jpg").as_posix())
                 logger.info("ok   · %s (sized fallback)", name)
                 if sleep > 0:
                     time.sleep(sleep)
@@ -273,7 +330,12 @@ def run_download(
     if on_progress:
         on_progress(Progress(prog.downloaded, prog.skipped, prog.errors, prog.last_line))
 
-    media = scan_media(dest)
+    incremental = bool(stop_pin_ids)
+    media = scan_media(
+        dest,
+        with_hashes=not incremental,
+        hash_rel_paths=downloaded_rel_paths if incremental else None,
+    )
 
     return DownloadResult(
         downloaded=prog.downloaded,
@@ -284,7 +346,23 @@ def run_download(
         log_tail="\n".join(log),
         media=media,
         board_name=extract_board_name(dest),
+        seen_pin_ids=seen_pin_ids,
+        stopped_at_checkpoint=stopped_at_checkpoint,
+        stop_pin_id=stop_pin_id,
     )
+
+
+def _output_rel_path(dest: Path, output: str) -> str | None:
+    """Return a gallery-dl output path relative to its board directory."""
+    path = Path(output.strip())
+    try:
+        rel = path.resolve().relative_to(dest.resolve())
+    except (OSError, ValueError):
+        try:
+            rel = path.relative_to(dest)
+        except ValueError:
+            return None
+    return rel.as_posix() if rel.suffix.lower() in MEDIA_EXTS else None
 
 
 def _clean_partials(dest: Path) -> None:
@@ -317,13 +395,19 @@ def extract_board_name(dest: Path) -> str | None:
 
 
 def scan_media(
-    dest: Path, *, with_hashes: bool = True, with_sidecar: bool = True
+    dest: Path,
+    *,
+    with_hashes: bool = True,
+    with_sidecar: bool = True,
+    hash_rel_paths: set[str] | None = None,
 ) -> list[MediaItem]:
     """Walk a board dir and build MediaItem rows.
 
     The full scan (default) enriches from sidecar JSON and computes hashes. A
     light scan (both flags False) just lists media files — used mid-download to
     surface partial results cheaply, before sidecars/hashes are worth computing.
+    `hash_rel_paths` selectively hashes newly downloaded files during an
+    incremental sync while leaving existing stored hashes untouched.
     """
     items: list[MediaItem] = []
     if not dest.exists():
@@ -339,7 +423,7 @@ def scan_media(
         item = MediaItem(filename=path.name, rel_path=rel, media_type=media_type)
         if with_sidecar:
             _enrich_from_sidecar(path, item)
-        if with_hashes:
+        if with_hashes or (hash_rel_paths is not None and rel in hash_rel_paths):
             h = dedup.compute(path, is_image=(media_type == "image"))
             item.content_sha256 = h.sha256
             item.phash = h.phash

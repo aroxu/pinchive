@@ -37,8 +37,8 @@ class Settings(BaseSettings):
     # cookie so a registered credential stays alive. Default: every 6 hours.
     refresh_cron: str = Field(default="0 */6 * * *")
 
-    # Automatic board re-sync: periodically re-download boards to pick up new
-    # pins (cheap — the per-board archive means only new pins are fetched).
+    # Automatic board re-sync: scan newest-first and stop at one of the ten ids
+    # saved from the previous sync; the archive also skips existing files.
     # Boards can opt out individually (Board.auto_resync). Default: daily 04:30.
     resync_cron: str = Field(default="30 4 * * *")
 

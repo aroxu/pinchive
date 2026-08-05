@@ -177,12 +177,17 @@ app.mount("/media", StaticFiles(directory=str(settings.boards_dir)), name="media
 # --------------------------------------------------------------------------- #
 # helpers
 # --------------------------------------------------------------------------- #
-async def enqueue_download(request: Request, board_id: int) -> bool:
+async def enqueue_download(
+    request: Request, board_id: int, *, force_full: bool = False
+) -> bool:
     pool: ArqRedis | None = request.app.state.arq
     if pool is None:
         return False
     try:
-        await pool.enqueue_job("download_board", board_id)
+        if force_full:
+            await pool.enqueue_job("download_board", board_id, True)
+        else:
+            await pool.enqueue_job("download_board", board_id)
         return True
     except Exception:  # noqa: BLE001
         return False
@@ -475,11 +480,46 @@ async def redownload_board(
     board = session.get(Board, board_id)
     if board is None:
         raise HTTPException(404, "board not found")
+    if board.status in {BoardStatus.queued, BoardStatus.downloading}:
+        return templates.TemplateResponse(
+            request, "partials/board_card.html", {"board": board}
+        )
     board.status = BoardStatus.queued
     board.last_error = None
+    board.force_full_sync = False
     session.add(board)
     session.commit()
     if not await enqueue_download(request, board_id):
+        board.status = BoardStatus.pending
+        board.last_error = "queue unavailable"
+        session.add(board)
+        session.commit()
+    session.refresh(board)
+    return templates.TemplateResponse(
+        request, "partials/board_card.html", {"board": board}
+    )
+
+
+@app.post("/boards/{board_id}/full-resync", response_class=HTMLResponse)
+async def full_resync_board(
+    request: Request, board_id: int, session: Session = Depends(get_session)
+):
+    """Queue an explicit end-to-end scan, bypassing the ten-pin checkpoint."""
+    board = session.get(Board, board_id)
+    if board is None:
+        raise HTTPException(404, "board not found")
+    if board.status in {BoardStatus.queued, BoardStatus.downloading}:
+        return templates.TemplateResponse(
+            request, "partials/board_card.html", {"board": board}
+        )
+    board.status = BoardStatus.queued
+    board.last_error = None
+    # Persist the mode so worker/container restarts resume the full scan instead
+    # of silently falling back to the incremental checkpoint.
+    board.force_full_sync = True
+    session.add(board)
+    session.commit()
+    if not await enqueue_download(request, board_id, force_full=True):
         board.status = BoardStatus.pending
         board.last_error = "queue unavailable"
         session.add(board)

@@ -218,6 +218,7 @@ h1, h2, h3, h4 {
 .btn-primary { background: var(--primary); color: var(--on-primary); }
 .btn-primary:hover { background: var(--primary-active); color: var(--on-primary); }
 .btn-primary:disabled { background: var(--primary-disabled); color: var(--muted); cursor: not-allowed; }
+.btn:disabled { opacity: .48; cursor: not-allowed; pointer-events: none; }
 .btn-secondary { background: var(--surface-card); color: var(--on-dark); border-color: var(--hairline); }
 .btn-secondary:hover { border-color: var(--hairline-strong); color: var(--on-dark); }
 .btn-ghost { background: transparent; color: var(--body); }
@@ -749,6 +750,7 @@ img.zoomable, video.zoomable { cursor: zoom-in; }
 .dh-url:hover { color: var(--tx2); }
 .dh-live { margin-top: 8px; font-size: 12.5px; color: var(--tx2); font-family: var(--font-mono); }
 .dh-right { display: flex; align-items: center; gap: 18px; }
+.dh-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 .dh-count { text-align: right; }
 .dh-count .n { font-size: 24px; font-weight: 800; color: var(--ac); line-height: 1; }
 .dh-count .k { font-size: 11px; color: var(--tx3); text-transform: uppercase; letter-spacing: 1px; margin-top: 3px; }

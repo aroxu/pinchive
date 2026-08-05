@@ -1,6 +1,7 @@
 """Slug + per-board folder derivation, and the auto-resync cron."""
 
 import asyncio
+import json
 import shutil
 
 from sqlmodel import select
@@ -8,7 +9,15 @@ from sqlmodel import select
 from app.config import get_settings
 from app.db import session_scope
 from app.models import Board, BoardStatus, Pin
-from app.tasks import _sync_partial_pins, board_folder, derive_slug, resync_all_boards
+from app.tasks import (
+    _checkpoint_from_existing_pins,
+    _decode_sync_checkpoint,
+    _merge_sync_checkpoint,
+    _sync_partial_pins,
+    board_folder,
+    derive_slug,
+    resync_all_boards,
+)
 
 
 def test_derive_slug_board_url():
@@ -34,6 +43,30 @@ def test_same_url_boards_get_distinct_folders():
     slug = derive_slug("https://www.pinterest.com/pin/424605071112831904/")
     assert board_folder(slug, 1) != board_folder(slug, 2)
     assert board_folder(slug, 1).endswith("-1")
+
+
+def test_sync_checkpoint_merge_is_unique_and_capped():
+    previous = [str(n) for n in range(20, 10, -1)]
+    merged = _merge_sync_checkpoint(["22", "21", "20", "22"], previous)
+    assert merged == ["22", "21", "20", "19", "18", "17", "16", "15", "14", "13"]
+    assert _decode_sync_checkpoint("not-json") == []
+    assert _decode_sync_checkpoint(json.dumps(["2", "2", "1"])) == ["2", "1"]
+
+
+def test_checkpoint_bootstraps_from_existing_newest_pins():
+    bid = _mk(BoardStatus.done, True)
+    with session_scope() as s:
+        for filename, pinterest_id in (
+            ("pinterest_100.jpg", "100"),
+            ("pinterest_300.jpg", "300"),
+            ("pinterest_200.jpg", "200"),
+        ):
+            s.add(Pin(
+                board_id=bid, rel_path=f"s/{filename}", filename=filename,
+                pinterest_id=pinterest_id,
+            ))
+    with session_scope() as s:
+        assert _checkpoint_from_existing_pins(s, bid) == ["300", "200", "100"]
 
 
 # --- resync cron ---
@@ -75,6 +108,125 @@ def test_resync_no_queue():
     _mk(BoardStatus.done, True)
     res = asyncio.run(resync_all_boards({"redis": None}))
     assert res["enqueued"] == 0
+
+
+def test_download_board_stops_at_saved_checkpoint(monkeypatch):
+    from app import tasks
+    from app.downloader import DownloadResult
+
+    bid = _mk(BoardStatus.done, True)
+    old = [str(n) for n in range(800, 790, -1)]
+    with session_scope() as s:
+        s.get(Board, bid).sync_checkpoint = json.dumps(old)
+
+    captured = {}
+
+    def fake_download(url, dest, **kwargs):
+        captured["stop_pin_ids"] = kwargs["stop_pin_ids"]
+        return DownloadResult(
+            dest=dest, seen_pin_ids=["802", "801"],
+            stopped_at_checkpoint=True, stop_pin_id="800",
+        )
+
+    monkeypatch.setattr(tasks, "run_download", fake_download)
+    result = asyncio.run(tasks.download_board({}, bid))
+
+    assert captured["stop_pin_ids"] == set(old)
+    assert result["mode"] == "incremental"
+    assert result["stopped_at_checkpoint"] is True
+    with session_scope() as s:
+        board = s.get(Board, bid)
+        assert _decode_sync_checkpoint(board.sync_checkpoint) == [
+            "802", "801", "800", "799", "798", "797", "796", "795", "794", "793"
+        ]
+        assert board.status == BoardStatus.done
+
+
+def test_download_board_force_full_replaces_checkpoint(monkeypatch):
+    from app import tasks
+    from app.downloader import DownloadResult
+
+    bid = _mk(BoardStatus.done, True)
+    with session_scope() as s:
+        board = s.get(Board, bid)
+        board.sync_checkpoint = json.dumps(["old"])
+        board.force_full_sync = True
+
+    captured = {}
+    newest = [str(n) for n in range(100, 88, -1)]
+
+    def fake_download(url, dest, **kwargs):
+        captured["stop_pin_ids"] = kwargs["stop_pin_ids"]
+        return DownloadResult(dest=dest, seen_pin_ids=newest)
+
+    monkeypatch.setattr(tasks, "run_download", fake_download)
+    result = asyncio.run(tasks.download_board({}, bid, True))
+
+    assert captured["stop_pin_ids"] == set()
+    assert result["mode"] == "full"
+    with session_scope() as s:
+        board = s.get(Board, bid)
+        assert _decode_sync_checkpoint(board.sync_checkpoint) == newest[:10]
+        assert board.force_full_sync is False
+
+
+def test_incremental_reconcile_preserves_cached_hashes(monkeypatch):
+    from app import tasks
+    from app.downloader import DownloadResult, MediaItem
+
+    bid = _mk(BoardStatus.done, True)
+    folder = board_folder("s", bid)
+    with session_scope() as s:
+        board = s.get(Board, bid)
+        board.sync_checkpoint = json.dumps(["100"])
+        s.add(Pin(
+            board_id=bid, pinterest_id="100", filename="old.jpg",
+            rel_path=f"{folder}/old.jpg", content_sha256="cached-sha",
+            phash="cached-phash", file_size=123,
+        ))
+
+    def fake_download(url, dest, **kwargs):
+        return DownloadResult(
+            dest=dest,
+            media=[MediaItem(
+                filename="old.jpg", rel_path="old.jpg", media_type="image",
+                pinterest_id="100",
+            )],
+            stopped_at_checkpoint=True,
+        )
+
+    monkeypatch.setattr(tasks, "run_download", fake_download)
+    asyncio.run(tasks.download_board({}, bid))
+
+    with session_scope() as s:
+        pin = s.exec(select(Pin).where(Pin.board_id == bid)).one()
+        assert pin.content_sha256 == "cached-sha"
+        assert pin.phash == "cached-phash"
+        assert pin.file_size == 123
+
+
+def test_interrupted_scan_does_not_replace_checkpoint(monkeypatch):
+    from app import tasks
+    from app.downloader import DownloadResult
+
+    bid = _mk(BoardStatus.done, True)
+    previous = ["100", "99", "98"]
+    with session_scope() as s:
+        s.get(Board, bid).sync_checkpoint = json.dumps(previous)
+
+    def fake_download(url, dest, **kwargs):
+        # A few new ids were emitted, then extraction died before reaching any
+        # old checkpoint. Saving these would make the next run stop too early.
+        return DownloadResult(
+            dest=dest, downloaded=1, errors=1, returncode=1,
+            seen_pin_ids=["102", "101"], stopped_at_checkpoint=False,
+        )
+
+    monkeypatch.setattr(tasks, "run_download", fake_download)
+    asyncio.run(tasks.download_board({}, bid))
+
+    with session_scope() as s:
+        assert _decode_sync_checkpoint(s.get(Board, bid).sync_checkpoint) == previous
 
 
 def test_no_board_timeout():

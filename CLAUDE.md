@@ -86,6 +86,13 @@ Defined in `app/config.py`. Many are also **runtime-editable** from the Settings
 - **No board timeout**: `job_timeout = 7 days`. Instead each file has a per-pin stall
   guard (`downloader.http.timeout`). Interrupted downloads (status downloading/queued/
   pending) are **re-enqueued on worker startup** (`_resume_interrupted`).
+- **Incremental board re-sync**: each successful scan stores the first ten Pinterest
+  pin IDs (newest-first) in `Board.sync_checkpoint`. Normal manual/cron syncs use a
+  gallery-dl post filter to stop before downloading as soon as any checkpoint ID is
+  reached. Existing installations seed the checkpoint from stored pin metadata.
+  **Force full sync** bypasses it; `Board.force_full_sync` persists that mode only
+  across an interrupted worker/container restart. Incremental reconciliation hashes
+  only files downloaded in that run and preserves cached hashes for existing pins.
 - **Duplicate detection**: exact `content_sha256` + 256-bit perceptual dHash. Grouping
   uses union-find over sha + **banded LSH** (pigeonhole) with an **aspect-ratio guard** —
   intent is "same image, resolution-only", not "looks similar". Groups are **precomputed

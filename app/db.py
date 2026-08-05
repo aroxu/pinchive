@@ -59,6 +59,8 @@ _ADDED_COLUMNS = {
     },
     "board": {
         "auto_resync": "BOOLEAN DEFAULT 1",
+        "sync_checkpoint": "VARCHAR",
+        "force_full_sync": "BOOLEAN DEFAULT 0",
     },
 }
 

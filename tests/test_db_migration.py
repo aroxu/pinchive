@@ -9,6 +9,10 @@ def _pin_cols():
     return {c["name"] for c in inspect(engine).get_columns("pin")}
 
 
+def _board_cols():
+    return {c["name"] for c in inspect(engine).get_columns("board")}
+
+
 def test_new_columns_present_after_init():
     init_db()
     cols = _pin_cols()
@@ -43,8 +47,8 @@ def test_migrate_adds_board_auto_resync():
         c.execute(text(
             "CREATE TABLE board (id INTEGER PRIMARY KEY, url VARCHAR, status VARCHAR)"
         ))
-    board_cols = {col["name"] for col in inspect(engine).get_columns("board")}
+    board_cols = _board_cols()
     assert "auto_resync" not in board_cols
     _migrate()
-    board_cols = {col["name"] for col in inspect(engine).get_columns("board")}
-    assert "auto_resync" in board_cols
+    board_cols = _board_cols()
+    assert {"auto_resync", "sync_checkpoint", "force_full_sync"} <= board_cols

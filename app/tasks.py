@@ -21,7 +21,7 @@ from sqlmodel import select
 from app import appsettings, auth
 from app.config import get_settings
 from app.db import init_db, session_scope
-from app.downloader import Progress, run_download, scan_media
+from app.downloader import SYNC_CHECKPOINT_SIZE, Progress, run_download, scan_media
 from app.models import (
     Board,
     BoardStatus,
@@ -59,6 +59,47 @@ def board_folder(slug: str, board_id: int) -> str:
     return f"{slug}-{board_id}"
 
 
+def _decode_sync_checkpoint(raw: str | None) -> list[str]:
+    """Load a board checkpoint defensively; malformed legacy data is ignored."""
+    if not raw:
+        return []
+    try:
+        values = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return []
+    if not isinstance(values, list):
+        return []
+    return _merge_sync_checkpoint(values, [])
+
+
+def _merge_sync_checkpoint(current, previous) -> list[str]:
+    """Newest-first unique ids, capped at the ten-pin safety window."""
+    merged: list[str] = []
+    for values in (current, previous):
+        for value in values:
+            pin_id = str(value).strip() if value is not None else ""
+            if pin_id and pin_id not in merged:
+                merged.append(pin_id)
+                if len(merged) >= SYNC_CHECKPOINT_SIZE:
+                    return merged
+    return merged
+
+
+def _checkpoint_from_existing_pins(session, board_id: int) -> list[str]:
+    """Seed upgraded boards without one last unavoidable full network scan.
+
+    Pinterest ids are embedded in stable filenames and increase over time, which
+    is also how the UI implements newest-first ordering. Existing sidecar ids
+    therefore provide a safe initial ten-pin checkpoint after migration.
+    """
+    ids = session.exec(
+        select(Pin.pinterest_id)
+        .where(Pin.board_id == board_id, Pin.pinterest_id.is_not(None))
+        .order_by(Pin.filename.desc())
+    ).all()
+    return _merge_sync_checkpoint(ids, [])
+
+
 def _remove_media_file(rel_path: str) -> None:
     """Delete a media file (and its sidecar) under boards_dir, guarded to it."""
     try:
@@ -74,7 +115,7 @@ def _remove_media_file(rel_path: str) -> None:
 # --------------------------------------------------------------------------- #
 # download job
 # --------------------------------------------------------------------------- #
-async def download_board(ctx: dict, board_id: int) -> dict:
+async def download_board(ctx: dict, board_id: int, force_full: bool = False) -> dict:
     loop = asyncio.get_running_loop()
 
     with session_scope() as s:
@@ -90,6 +131,14 @@ async def download_board(ctx: dict, board_id: int) -> dict:
         slug = board.slug
         url = board.url
         cred_id = board.credential_id
+        full_sync = bool(force_full or board.force_full_sync)
+        checkpoint = _decode_sync_checkpoint(board.sync_checkpoint)
+        if not checkpoint:
+            checkpoint = _checkpoint_from_existing_pins(s, board_id)
+            if checkpoint:
+                board.sync_checkpoint = json.dumps(checkpoint, separators=(",", ":"))
+
+    stop_pin_ids = set() if full_sync else set(checkpoint)
 
     # Folder is suffixed with the board id so two boards that derive the same
     # slug (e.g. the same URL added twice) never share a directory and clobber
@@ -106,7 +155,8 @@ async def download_board(ctx: dict, board_id: int) -> dict:
         cf = auth.cookies_path(cred_id)
         cookies_file = cf if cf.exists() else None
 
-    logger.info("▶ board %s: downloading %s", board_id, url)
+    mode = "full" if full_sync or not stop_pin_ids else "incremental"
+    logger.info("▶ board %s: %s sync %s", board_id, mode, url)
     # Pins the user deleted as duplicates. Pinterest may still offer them (often a
     # 403 on the blocked original); run_download skips those silently instead of
     # erroring, and the reconcile below drops any that did slip through.
@@ -145,6 +195,7 @@ async def download_board(ctx: dict, board_id: int) -> dict:
             stall_timeout=appsettings.get("pin_stall_timeout"),
             on_progress=on_progress,
             blocked=blocked,
+            stop_pin_ids=stop_pin_ids,
         ),
     )
 
@@ -162,6 +213,25 @@ async def download_board(ctx: dict, board_id: int) -> dict:
             board.title = result.board_name  # real Pinterest name (e.g. Korean)
         board.finished_at = _now()
         board.updated_at = _now()
+        # The persisted flag exists only so a worker/container crash can resume
+        # the same forced scan. Once gallery-dl returns, even with an error, the
+        # next scheduled/manual sync goes back to the safe incremental mode.
+        board.force_full_sync = False
+
+        if result.seen_pin_ids and (
+            result.stopped_at_checkpoint or result.returncode == 0
+        ):
+            if stop_pin_ids and result.stopped_at_checkpoint:
+                # Prefix new ids, then retain enough of the old window to keep
+                # ten independent stop points for the next incremental sync.
+                next_checkpoint = _merge_sync_checkpoint(
+                    result.seen_pin_ids, checkpoint
+                )
+            else:
+                # Initial/forced scan, or every old checkpoint disappeared:
+                # the emitted first ten ids are the authoritative new window.
+                next_checkpoint = _merge_sync_checkpoint(result.seen_pin_ids, [])
+            board.sync_checkpoint = json.dumps(next_checkpoint, separators=(",", ":"))
 
         if result.ok or result.partial:
             # A run that produced media is "done" — recovered 403s / skipped
@@ -201,9 +271,12 @@ async def download_board(ctx: dict, board_id: int) -> dict:
             pin.source_url = m.source_url
             pin.title = m.title
             pin.description = m.description
-            pin.content_sha256 = m.content_sha256
-            pin.phash = m.phash
-            pin.file_size = m.file_size
+            # Incremental scans hash only files downloaded in this run. Preserve
+            # cached hashes for archived files that were merely listed on disk.
+            if m.content_sha256 is not None:
+                pin.content_sha256 = m.content_sha256
+                pin.phash = m.phash
+                pin.file_size = m.file_size
             s.add(pin)
         for rel, pin in existing.items():
             if rel not in seen:
@@ -239,6 +312,8 @@ async def download_board(ctx: dict, board_id: int) -> dict:
         "skipped": result.skipped,
         "errors": result.errors,
         "status": status,
+        "mode": mode,
+        "stopped_at_checkpoint": result.stopped_at_checkpoint,
     }
 
 
@@ -424,9 +499,9 @@ _RESYNCABLE = (BoardStatus.done, BoardStatus.partial, BoardStatus.error)
 async def resync_all_boards(ctx: dict) -> dict:
     """Cron: enqueue a re-download for every opted-in board that's idle.
 
-    The per-board --download-archive makes this cheap: only new pins are
-    actually fetched. Boards mid-flight (queued/downloading) are skipped so we
-    never double-queue.
+    Each board stops at its previous ten-pin checkpoint, and its per-board
+    --download-archive still prevents duplicate file downloads. Boards
+    mid-flight (queued/downloading) are skipped so we never double-queue.
     """
     with session_scope() as s:
         ids = [

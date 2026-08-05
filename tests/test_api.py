@@ -329,3 +329,34 @@ def test_toggle_resync(client):
     client.post(f"/boards/{bid}/toggle-resync")
     with session_scope() as s:
         assert s.get(Board, bid).auto_resync is True
+
+
+def test_incremental_and_force_full_resync_routes(client):
+    class Pool:
+        def __init__(self):
+            self.jobs = []
+
+        async def enqueue_job(self, name, *args):
+            self.jobs.append((name, args))
+
+    normal_id = _mk_board(slug="inc")
+    full_id = _mk_board(slug="full")
+    pool = Pool()
+    original = client.app.state.arq
+    client.app.state.arq = pool
+    try:
+        assert client.post(f"/boards/{normal_id}/redownload").status_code == 200
+        assert client.post(f"/boards/{full_id}/full-resync").status_code == 200
+    finally:
+        client.app.state.arq = original
+
+    assert pool.jobs == [
+        ("download_board", (normal_id,)),
+        ("download_board", (full_id, True)),
+    ]
+    with session_scope() as s:
+        assert s.get(Board, normal_id).force_full_sync is False
+        assert s.get(Board, full_id).force_full_sync is True
+
+    body = client.get(f"/boards/{full_id}").text
+    assert "Force full sync" in body

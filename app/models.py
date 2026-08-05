@@ -108,6 +108,12 @@ class Board(SQLModel, table=True):
     # Include this board in the periodic auto-resync cron.
     auto_resync: bool = Field(default=True)
 
+    # JSON array containing the first ten Pinterest pin ids seen during the
+    # latest sync, in newest-first feed order. Normal re-syncs stop as soon as
+    # any of these ids appears; force_full_sync bypasses that checkpoint.
+    sync_checkpoint: Optional[str] = Field(default=None)
+    force_full_sync: bool = Field(default=False)
+
     credential_id: Optional[int] = Field(
         default=None, foreign_key="credential.id"
     )

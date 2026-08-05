@@ -98,17 +98,19 @@ cookies for that credential.
 - **Pagination.** Board list, pin grids, and the Duplicates page paginate
   (sizes configurable via `PINCHIVE_PER_PAGE_*`).
 - **Automatic re-sync.** A cron re-downloads boards on
-  `PINCHIVE_RESYNC_CRON` (default daily 04:30; empty disables) to pull new pins —
-  cheap, since the per-board archive only fetches new ones. Toggle **auto-sync**
-  per board from its card to opt individual boards out.
+  `PINCHIVE_RESYNC_CRON` (default daily 04:30; empty disables) to pull new pins.
+  Pinchive stores the ten newest pin IDs from each sync and stops the next scan
+  as soon as one is reached, instead of paging through the whole board. Toggle
+  **auto-sync** per board from its card to opt individual boards out; use
+  **Force full sync** on the board page only when an end-to-end scan is needed.
 - **Multilingual UI** (English / 한국어). Auto-detects from `Accept-Language`;
   switch from the nav (choice persists in a cookie). Add a language by extending
   the catalogs in [app/i18n.py](app/i18n.py) — no gettext toolchain.
 
-Each board keeps its **own** `--download-archive`, so a board stays a faithful
-mirror (a pin shared across boards downloads into each) while re-syncing still
-fetches only new pins — redundancy is surfaced by the Duplicates view, not
-silently dropped.
+Each board keeps its **own** `--download-archive` and newest-ten checkpoint, so
+a board stays a faithful mirror (a pin shared across boards downloads into each)
+while normal re-syncs stop at the known boundary and fetch only new pins.
+Redundancy is surfaced by the Duplicates view, not silently dropped.
 
 ## Local dev (no Docker)
 
@@ -143,8 +145,9 @@ templates/  static/   Jinja2 + design-token CSS
 
 ## Notes
 
-- Each board keeps its own per-board `--download-archive`, so re-syncing a board
-  only fetches *new* pins.
+- Normal re-sync stores a rolling ten-pin checkpoint and stops before walking
+  the historical board; **Force full sync** bypasses it. The per-board
+  `--download-archive` still prevents existing files from downloading again.
 - No shadows anywhere — depth is pure canvas/card contrast, per the design system.
 - ffmpeg is bundled in the image for muxing video pins.
 
