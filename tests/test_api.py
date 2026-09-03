@@ -88,6 +88,25 @@ def test_board_detail_and_404(client):
     assert client.get("/api/boards/99999").status_code == 404
 
 
+def test_processed_count_is_work_done_not_a_percentage(client):
+    """Regression: a percentage over pin_count read as 100% mid-download.
+
+    gallery-dl never announces a board total, and pin_count is what is already
+    stored — so the card reports processed work instead of a fake completion bar.
+    """
+    bid = _mk_board(slug="prog", status=BoardStatus.downloading, pin_count=5)
+    Board.update(downloaded_count=11, skipped_count=3, error_count=2).where(
+        Board.id == bid
+    ).execute()
+    body = client.get(f"/api/boards/{bid}").json()
+    assert "progress_pct" not in body
+    # Work done can legitimately exceed what is stored (skips, re-downloads).
+    assert body["processed_count"] == 14
+    assert body["pin_count"] == 5
+    assert body["error_count"] == 2
+    assert body["is_active"] is True
+
+
 def test_board_search_and_status_filter(client):
     _mk_board(title="Interior Ideas", slug="interior", status=BoardStatus.done)
     _mk_board(title="Workshop Refs", slug="workshop", status=BoardStatus.downloading)

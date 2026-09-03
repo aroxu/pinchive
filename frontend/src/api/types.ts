@@ -23,7 +23,7 @@ export interface Board {
   downloaded_count: number;
   skipped_count: number;
   error_count: number;
-  progress_pct: number;
+  processed_count: number;
   auto_resync: boolean;
   last_error: string | null;
   log_tail: string | null;

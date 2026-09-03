@@ -59,7 +59,7 @@ class BoardOut(BaseModel):
     downloaded_count: int
     skipped_count: int
     error_count: int
-    progress_pct: int
+    processed_count: int
     auto_resync: bool
     last_error: str | None = None
     log_tail: str | None = None
@@ -92,7 +92,7 @@ class BoardOut(BaseModel):
             downloaded_count=board.downloaded_count or 0,
             skipped_count=board.skipped_count or 0,
             error_count=board.error_count or 0,
-            progress_pct=board.progress_pct,
+            processed_count=board.processed_count,
             auto_resync=bool(board.auto_resync),
             last_error=board.last_error,
             log_tail=board.log_tail if include_log else None,

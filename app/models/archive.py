@@ -105,12 +105,14 @@ class Board(BaseModel):
         return unquote(self.url)
 
     @property
-    def progress_pct(self) -> int:
-        total = self.pin_count or 0
-        if total <= 0:
-            return 0
-        done = (self.downloaded_count or 0) + (self.skipped_count or 0)
-        return min(100, int(done * 100 / total))
+    def processed_count(self) -> int:
+        """Pins gallery-dl has handled so far in the current run.
+
+        There is deliberately no percentage: gallery-dl streams a board and never
+        reports a total up front, and `pin_count` is what is *already stored*, not
+        what remains. Dividing by it read as 100% the moment a download started.
+        """
+        return (self.downloaded_count or 0) + (self.skipped_count or 0)
 
     @property
     def is_active(self) -> bool:

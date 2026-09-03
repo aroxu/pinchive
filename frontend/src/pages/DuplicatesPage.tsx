@@ -99,7 +99,10 @@ export function DuplicatesPage() {
                 transition={{ duration: 0.2 }}
               >
                 <Card className="bg-card border-line border">
-                  <Card.Content className="flex flex-wrap gap-3 p-4">
+                  {/* flex-row is explicit: HeroUI's .card__content sets
+                      flex-direction: column, so copies would stack vertically
+                      instead of sitting side by side for comparison. */}
+                  <Card.Content className="flex flex-row flex-wrap gap-3 p-4">
                     {group.pins.map((pin) => (
                       <figure key={pin.id} className="w-40">
                         <button

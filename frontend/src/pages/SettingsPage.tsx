@@ -144,7 +144,7 @@ export function SettingsPage() {
         <Card className="bg-card border-line border">
           {/* Read-only runtime facts on the left, the save actions on the right;
               `mr-auto` keeps the facts left-aligned even when the row wraps. */}
-          <Card.Content className="flex w-full flex-wrap items-end gap-6 p-5">
+          <Card.Content className="flex w-full flex-row flex-wrap items-end gap-6 p-5">
             <div className="mr-auto flex flex-wrap gap-8">
               <div>
                 <div className="text-sm font-medium">{t("settings.concurrency")}</div>

@@ -157,11 +157,26 @@ function BoardCard({ board, onChanged }: { board: Board; onChanged: () => void }
           </div>
 
           {board.is_active ? (
-            <ProgressBar value={board.progress_pct} className="w-full">
-              <ProgressBar.Track>
-                <ProgressBar.Fill />
-              </ProgressBar.Track>
-            </ProgressBar>
+            // Indeterminate on purpose: gallery-dl streams a board without ever
+            // announcing a total, so any percentage would be invented. The live
+            // count below carries the actual signal.
+            <div className="flex flex-col gap-1.5">
+              <ProgressBar
+                isIndeterminate
+                aria-label={t("status.downloading")}
+                className="w-full"
+              >
+                <ProgressBar.Track>
+                  <ProgressBar.Fill />
+                </ProgressBar.Track>
+              </ProgressBar>
+              <span className="text-ink-dim font-mono text-xs">
+                {t("boards.processed", { n: board.processed_count })}
+                {board.error_count > 0
+                  ? ` · ${t("boards.failed", { n: board.error_count })}`
+                  : ""}
+              </span>
+            </div>
           ) : null}
 
           <div className="flex items-baseline justify-between">
