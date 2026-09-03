@@ -23,6 +23,15 @@ const STATUS_FILTERS: { value: string; key: MessageKey }[] = [
   { value: "done", key: "boards.status.done" },
 ];
 
+/** One archive-wide total: the figure in mono, the unit beside it. */
+function Stat({ value, label }: { value: number; label: string }) {
+  return (
+    <span className="text-ink-dim">
+      <span className="text-ink font-mono font-semibold">{value}</span> {label}
+    </span>
+  );
+}
+
 export function BoardsPage() {
   const { t } = useI18n();
   const [q, setQ] = useState("");
@@ -46,8 +55,12 @@ export function BoardsPage() {
         title={t("boards.title")}
         subtitle={
           stats.data ? (
-            <span className="font-mono">
-              {stats.data.boards} · {stats.data.pins} · {stats.data.sessions}
+            // Each total carries its own label: three bare numbers separated by
+            // dots told the reader nothing about what they counted.
+            <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <Stat value={stats.data.boards} label={t("boards.stat_boards")} />
+              <Stat value={stats.data.pins} label={t("boards.stat_pins")} />
+              <Stat value={stats.data.sessions} label={t("boards.stat_sessions")} />
             </span>
           ) : null
         }

@@ -26,6 +26,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
 
 
+class _ImmutableStatic(StaticFiles):
+    """StaticFiles for content-hashed filenames: cache hard, never revalidate."""
+
+    def file_response(self, *args, **kwargs):  # noqa: ANN002, ANN003
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return response
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings.ensure_dirs()
@@ -73,7 +82,13 @@ def _mount_frontend(app: FastAPI) -> None:
     routes (deep links like /boards/3 must not 404)."""
     assets = FRONTEND_DIST / "assets"
     if assets.is_dir():
-        app.mount("/assets", StaticFiles(directory=str(assets)), name="assets")
+        # Vite fingerprints these filenames, so a changed bundle is a new URL and
+        # the old one can be cached forever.
+        app.mount(
+            "/assets",
+            _ImmutableStatic(directory=str(assets)),
+            name="assets",
+        )
 
     index = FRONTEND_DIST / "index.html"
 
@@ -88,7 +103,10 @@ def _mount_frontend(app: FastAPI) -> None:
         candidate = (FRONTEND_DIST / full_path).resolve()
         if full_path and FRONTEND_DIST.resolve() in candidate.parents and candidate.is_file():
             return FileResponse(candidate)
-        return FileResponse(index)
+        # index.html names the hashed bundles, so it must never be served from
+        # cache without revalidating: a stale copy pins the browser to the
+        # previous build and an update looks like it did nothing.
+        return FileResponse(index, headers={"Cache-Control": "no-cache"})
 
 
 app = create_app()

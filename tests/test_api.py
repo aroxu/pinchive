@@ -1,6 +1,9 @@
 """JSON API tests via TestClient (no redis; queue degraded)."""
 
+import re
 import shutil
+
+import pytest
 
 from app.core.config import get_settings
 from app.models import Board, BoardStatus, Pin, PinTagLink, Tag
@@ -48,6 +51,24 @@ def test_client_side_route_falls_back_to_shell(client):
     r = client.get("/boards/123")
     assert r.status_code == 200
     assert '<div id="root">' in r.text
+
+
+def test_shell_is_revalidated_but_assets_are_immutable(client):
+    """A cached index.html would pin the browser to the previous build.
+
+    index.html names the hashed bundles, so it must revalidate every load, while
+    the fingerprinted assets under /assets can be cached indefinitely.
+    """
+    shell = client.get("/")
+    assert shell.headers["cache-control"] == "no-cache"
+
+    # Find whatever bundle this build produced rather than hard-coding a hash.
+    match = re.search(r'src="(/assets/[^"]+\.js)"', shell.text)
+    if match is None:
+        pytest.skip("front end not built in this environment")
+    asset = client.get(match.group(1))
+    assert asset.status_code == 200
+    assert "immutable" in asset.headers["cache-control"]
 
 
 def test_healthz_queue_disabled(client):
