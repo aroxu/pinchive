@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
@@ -13,7 +13,7 @@ def configured_timezone():
     try:
         return ZoneInfo(name)
     except (ZoneInfoNotFoundError, ValueError):
-        return timezone.utc
+        return UTC
 
 
 def local_datetime(value: datetime | None) -> datetime | None:
@@ -21,7 +21,7 @@ def local_datetime(value: datetime | None) -> datetime | None:
     if value is None:
         return None
     if value.tzinfo is None:
-        value = value.replace(tzinfo=timezone.utc)
+        value = value.replace(tzinfo=UTC)
     return value.astimezone(configured_timezone())
 
 

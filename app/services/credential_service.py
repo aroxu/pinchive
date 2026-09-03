@@ -23,7 +23,7 @@ from pathlib import Path
 
 import httpx
 
-from app.config import get_settings
+from app.core.config import get_settings
 
 SESSION_COOKIE = "_pinterest_sess"
 _UA = (

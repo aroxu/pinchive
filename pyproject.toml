@@ -10,9 +10,8 @@ authors = [{ name = "aroxu" }]
 dependencies = [
     "fastapi>=0.111",
     "uvicorn[standard]>=0.30",
-    "jinja2>=3.1",
     "python-multipart>=0.0.9",
-    "sqlmodel>=0.0.21",
+    "peewee>=3.17",   # DB layer: lightweight query builder, no SQLAlchemy
     "arq>=0.26",
     "redis>=5.0",
     "gallery-dl>=1.32",  # post-event --Print + post-filter abort for sync checkpoints
@@ -36,6 +35,26 @@ packages = ["app"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.ruff.lint]
+# Pinned explicitly so a Ruff upgrade cannot silently change the gate. This is
+# the set the codebase was written against (default rules + the import, bugbear,
+# comprehension and pyupgrade families we actually enforce).
+select = ["E", "F", "W", "I", "B", "C4", "UP", "ARG", "SIM"]
+ignore = [
+    "B008",    # FastAPI puts Depends()/Query() in defaults by design
+    "UP037",   # SQLModel-era quoted annotations remain valid and harmless
+    "SIM105",  # contextlib.suppress is not clearer in the tight IO loops here
+    "UP042",   # str+Enum is deliberate: members are stored as DB/JSON strings
+    "SIM108",  # an if/else block is more readable than a long ternary here
+]
+
+[tool.ruff.lint.per-file-ignores]
+# arq passes a job context to every task, whether or not the task reads it.
+"app/worker.py" = ["ARG001"]
+# Tests intentionally reach past the service layer to set up and assert state,
+# and stub callables ignore the arguments they are handed.
+"tests/*" = ["ARG001", "ARG002", "ARG005"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

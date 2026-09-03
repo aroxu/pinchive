@@ -27,7 +27,7 @@ from pathlib import Path
 
 import httpx
 
-from app import dedup
+from app.services import dedup
 
 # Emits to stdout (see tasks._startup) so `docker compose logs -f worker` shows
 # per-file download activity: successes, skips (with reason), and errors.

@@ -1,20 +1,19 @@
 """Runtime-editable settings.
 
-Env/config (app.config.Settings) provides the defaults; the Setting DB table
-holds user overrides edited on the /settings page. `effective()` merges them.
+Env/config (app.core.config.Settings) provides the defaults; the Setting DB
+table holds user overrides edited on the settings page. `effective()` merges
+them.
 Web routes and worker jobs read effective values per request/job, so most
 changes apply immediately (page sizes, download tuning).
-Cron intervals apply via the gated hourly crons in app.tasks — also live.
+Cron schedules apply via the minute-level dispatcher in app.worker — also live.
 """
 
 from __future__ import annotations
 
 from datetime import datetime
 
-from sqlmodel import select
-
-from app.config import get_settings
-from app.db import session_scope
+from app.core.config import get_settings
+from app.core.db import connection, transaction
 from app.models import Setting
 
 _base = get_settings()
@@ -140,8 +139,8 @@ def _cast(key: str, raw: str):
 
 def effective() -> dict:
     vals = defaults()
-    with session_scope() as s:
-        for row in s.exec(select(Setting)).all():
+    with connection():
+        for row in Setting.select():
             if row.key in EDITABLE:
                 try:
                     vals[row.key] = _cast(row.key, row.value)
@@ -157,7 +156,7 @@ def get(key: str):
 def save(updates: dict) -> None:
     """Persist editable overrides. Blank/absent values keep the previous value;
     a blank cron is allowed (disables the job)."""
-    with session_scope() as s:
+    with transaction():
         for key, (caster, _lo, _hi) in EDITABLE.items():
             if caster is _cron:
                 if key not in updates:
@@ -173,24 +172,25 @@ def save(updates: dict) -> None:
                     continue
             else:
                 continue
-            row = s.get(Setting, key)
-            if row:
-                row.value = raw
-            else:
-                s.add(Setting(key=key, value=raw))
+            _upsert(key, raw)
+
+
+def _upsert(key: str, value: str) -> None:
+    """INSERT .. ON CONFLICT UPDATE — Setting has a natural (text) primary key,
+    so Peewee cannot tell an insert from an update by itself."""
+    Setting.insert(key=key, value=value).on_conflict(
+        conflict_target=[Setting.key],
+        preserve=[Setting.value],
+    ).execute()
 
 
 # --- raw store for internal bookkeeping (cron last-run timestamps) ---
 def get_raw(key: str) -> str | None:
-    with session_scope() as s:
-        row = s.get(Setting, key)
-        return row.value if row else None
+    with connection():
+        row = Setting.get_or_none(Setting.key == key)
+    return row.value if row else None
 
 
 def set_raw(key: str, value: str) -> None:
-    with session_scope() as s:
-        row = s.get(Setting, key)
-        if row:
-            row.value = value
-        else:
-            s.add(Setting(key=key, value=value))
+    with transaction():
+        _upsert(key, value)
