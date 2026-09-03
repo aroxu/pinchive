@@ -31,7 +31,7 @@ class Settings(BaseSettings):
 
     # Schedules are standard 5-field crontab expressions
     # (minute hour day-of-month month day-of-week); an empty string disables the
-    # job. The worker evaluates them every minute (app.tasks._cron_dispatch).
+    # job. The worker evaluates them every minute (app.worker._cron_dispatch).
     #
     # Credential keep-alive: re-hit Pinterest and persist the rotated session
     # cookie so a registered credential stays alive. Default: every 6 hours.

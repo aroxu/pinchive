@@ -43,7 +43,7 @@ target-version = "py311"
 select = ["E", "F", "W", "I", "B", "C4", "UP", "ARG", "SIM"]
 ignore = [
     "B008",    # FastAPI puts Depends()/Query() in defaults by design
-    "UP037",   # SQLModel-era quoted annotations remain valid and harmless
+    "UP037",   # quoted forward refs in dataclass fields are valid and harmless
     "SIM105",  # contextlib.suppress is not clearer in the tight IO loops here
     "UP042",   # str+Enum is deliberate: members are stored as DB/JSON strings
     "SIM108",  # an if/else block is more readable than a long ternary here
