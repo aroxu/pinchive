@@ -203,9 +203,11 @@ adopt the palette instead of their stock blue-on-grey defaults.
 
 ## Docker / deploy
 
-- Multi-stage Dockerfile: a `node:22-alpine` stage builds the React bundle, the
+- Multi-stage Dockerfile: a `node:24-alpine` stage builds the React bundle, the
   `python:3.12-slim` runtime copies only `frontend/dist` — so no Node ships in the
-  runtime layer. tini → entrypoint → gosu.
+  runtime layer. tini → entrypoint → gosu. The front-end stage is pinned to
+  `--platform=$BUILDPLATFORM`: its output is architecture-independent, so the arm64
+  leg would otherwise rebuild an identical bundle under QEMU.
 - **One browser-free image**, built for both `linux/amd64` and `linux/arm64` by
   `docker-bake.hcl`, is published as `ghcr.io/aroxu/pinchive:latest` (and a ref/version
   tag) by `.github/workflows/docker-publish.yml`.
@@ -224,9 +226,12 @@ adopt the palette instead of their stock blue-on-grey defaults.
 The backend was re-layered onto Peewee and the front end rebuilt on React/HeroUI/Framer
 Motion (commits `9535fdd`, `a96816e`, `c80bfc6`, `9276faf`).
 
-- **126 pytest tests** pass; Ruff clean (rule set pinned in `pyproject.toml` so a Ruff
+- **132 pytest tests** pass; Ruff clean (rule set pinned in `pyproject.toml` so a Ruff
   upgrade cannot silently change the gate); `pip check` clean; front-end `tsc -b
   --noEmit` clean and `npm run build` succeeds (~175 kB gzip JS).
+- `tests/test_architecture.py` enforces the layering (no upward imports), bans
+  SQLAlchemy/SQLModel imports, and keeps model queries out of the API layer. The check
+  was confirmed to fail when an upward import is injected, not merely to pass.
 - Peewee opens the pre-existing schema unchanged and the migration adds
   `sync_checkpoint`, `force_full_sync`, `storage_backend`; cascade delete verified.
 - Verified in a real browser against `uvicorn` + the built bundle: all four screens
@@ -236,8 +241,15 @@ Motion (commits `9535fdd`, `a96816e`, `c80bfc6`, `9276faf`).
   uncropped and closes on Escape with body scroll restored.
 - Dedup on seeded data grouped exactly the one genuine duplicate pair (600×400 plus its
   300×200 resize) out of 13 pins, leaving the other 11 ungrouped.
-- **Not verified locally: the Docker image build** (no Docker on this machine). Only the
-  Dockerfile's build-context references were checked statically.
+- Every path the TypeScript client calls (24 of them) was replayed against the app:
+  no contract mismatches.
+- **Docker itself is not installed here, so `docker build` has not been run.** Both
+  stages were reproduced natively instead: `npm ci` from the lockfile then `npm run
+  build`, and a non-editable `pip install .` into a clean venv, after which the app
+  imported with `PYTHONPATH` set (resolving to the source tree, as in the image),
+  served the built SPA and its deep-link fallback, and loaded the arq worker settings.
+  Every `COPY` source was also checked against `.dockerignore`. What remains unproven
+  is the layer plumbing itself: base images, apt packages, and the gosu/tini entrypoint.
 
 ## Constraints for assistants
 
