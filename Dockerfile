@@ -1,7 +1,15 @@
 # syntax=docker/dockerfile:1
 
 # ---- frontend stage: build the React client ----
-FROM node:22-alpine AS frontend
+# Node 24 is the active LTS line and is what the bundle is developed against;
+# Vite 7 also requires ^20.19 || >=22.12, so 22 would work but is already in
+# maintenance. Only the built assets reach the runtime image.
+#
+# Pinned to the BUILDPLATFORM: the output is architecture-independent static
+# files, so running this stage under QEMU once per target arch would only make
+# the arm64 build slow (esbuild/rollup/lightningcss are native binaries) for an
+# identical bundle.
+FROM --platform=$BUILDPLATFORM node:24-alpine AS frontend
 WORKDIR /ui
 # Install from the lockfile first so dependency layers cache across code edits.
 COPY frontend/package.json frontend/package-lock.json ./

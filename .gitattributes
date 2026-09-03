@@ -3,3 +3,18 @@
 * text=auto
 *.sh text eol=lf
 *.py text eol=lf
+# Container/build files are consumed by Linux tooling; a CRLF checkout on a
+# Windows clone would ship carriage returns into RUN lines and compose values.
+Dockerfile text eol=lf
+docker-bake.hcl text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+# Binary assets: never run EOL conversion over them. Git's auto-detection has
+# been getting this right, but a font that ever went through CRLF translation
+# would be silently corrupt, so say it explicitly.
+*.woff2 binary
+*.woff binary
+*.png binary
+*.jpg binary
+*.ico binary
+*.db binary
