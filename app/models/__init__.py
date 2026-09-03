@@ -4,6 +4,7 @@ Table/column names mirror the original schema so an existing ``pinchive.db``
 opens without a data migration. ``ALL_TABLES`` drives ``create_tables``.
 """
 
+from app.core.db import create_schema
 from app.models.archive import (
     Board,
     BoardTagLink,
@@ -36,6 +37,12 @@ ALL_TABLES = (
     DeletedPin,
 )
 
+
+def init_db() -> None:
+    """Bring the database up to date with these models."""
+    create_schema(ALL_TABLES)
+
+
 __all__ = [
     "ACTIVE_STATUSES",
     "ALL_TABLES",
@@ -54,6 +61,7 @@ __all__ = [
     "StorageBackend",
     "Tag",
     "UTCDateTimeField",
+    "init_db",
     "readable_name_from_url",
     "utcnow",
 ]

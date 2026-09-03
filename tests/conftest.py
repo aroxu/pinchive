@@ -18,8 +18,8 @@ from PIL import Image  # noqa: E402
 
 from app import main  # noqa: E402
 from app.core.config import get_settings  # noqa: E402
-from app.core.db import bind, connection, init_db  # noqa: E402
-from app.models import ALL_TABLES  # noqa: E402
+from app.core.db import bind, connection  # noqa: E402
+from app.models import ALL_TABLES, init_db  # noqa: E402
 
 settings = get_settings()
 

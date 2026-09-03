@@ -1,6 +1,7 @@
 """The hand-rolled sqlite column migration (Peewee)."""
 
-from app.core.db import _migrate, connection, init_db
+from app.core.db import _migrate, connection
+from app.models import init_db
 
 
 def _cols(table: str) -> set[str]:

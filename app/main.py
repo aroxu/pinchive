@@ -18,8 +18,8 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api import boards, credentials, duplicates, pins, system
 from app.core.config import get_settings
-from app.core.db import init_db
 from app.core.i18n import LocaleMiddleware
+from app.models import init_db
 
 settings = get_settings()
 BASE_DIR = Path(__file__).resolve().parent.parent

@@ -15,8 +15,7 @@ from arq import cron
 from arq.connections import RedisSettings
 
 from app.core.config import get_settings
-from app.core.db import init_db
-from app.models import Board, BoardStatus
+from app.models import Board, BoardStatus, init_db
 from app.services import (
     board_service,
     credential_store,

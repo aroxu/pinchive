@@ -72,12 +72,15 @@ def transaction() -> Iterator[SqliteDatabase]:
         yield db
 
 
-def init_db() -> None:
-    """Create missing tables, then patch in columns added after a release."""
-    from app.models import ALL_TABLES
+def create_schema(tables) -> None:
+    """Create missing tables, then patch in columns added after a release.
 
+    Takes the table list as an argument rather than importing the models: `core`
+    sits below `models` in the dependency order, so it must not reach upward.
+    Call it through :func:`app.models.init_db`.
+    """
     with connection() as db:
-        db.create_tables(ALL_TABLES, safe=True)
+        db.create_tables(tables, safe=True)
         _migrate(db)
 
 
