@@ -1,54 +1,50 @@
-"""The hand-rolled sqlite column migration."""
+"""The hand-rolled sqlite column migration (Peewee)."""
 
-from sqlalchemy import inspect, text
-
-from app.db import _migrate, engine, init_db
+from app.core.db import _migrate, connection, init_db
 
 
-def _pin_cols():
-    return {c["name"] for c in inspect(engine).get_columns("pin")}
-
-
-def _board_cols():
-    return {c["name"] for c in inspect(engine).get_columns("board")}
+def _cols(table: str) -> set[str]:
+    with connection() as db:
+        return {row[1] for row in db.execute_sql(f"PRAGMA table_info({table})")}
 
 
 def test_new_columns_present_after_init():
     init_db()
-    cols = _pin_cols()
+    cols = _cols("pin")
     for c in ("title", "description", "content_sha256", "phash", "file_size"):
         assert c in cols
 
 
 def test_migrate_is_idempotent():
     init_db()
-    _migrate()
-    _migrate()  # second run must not raise
-    assert "phash" in _pin_cols()
+    with connection() as db:
+        _migrate(db)
+        _migrate(db)  # second run must not raise
+    assert "phash" in _cols("pin")
 
 
 def test_migrate_adds_missing_columns_to_old_table():
     # Simulate a pre-feature DB: a bare pin table missing the new columns.
-    with engine.begin() as c:
-        c.execute(text("DROP TABLE IF EXISTS pin"))
-        c.execute(text(
+    with connection() as db:
+        db.execute_sql("DROP TABLE IF EXISTS pin")
+        db.execute_sql(
             "CREATE TABLE pin (id INTEGER PRIMARY KEY, board_id INTEGER, "
             "filename VARCHAR, rel_path VARCHAR)"
-        ))
-    assert "content_sha256" not in _pin_cols()
-    _migrate()
-    cols = _pin_cols()
-    assert {"content_sha256", "phash", "file_size", "title", "description"} <= cols
+        )
+        assert "content_sha256" not in _cols("pin")
+        _migrate(db)
+    assert {
+        "content_sha256", "phash", "file_size", "title", "description",
+        "dup_group", "storage_backend",
+    } <= _cols("pin")
 
 
-def test_migrate_adds_board_auto_resync():
-    with engine.begin() as c:
-        c.execute(text("DROP TABLE IF EXISTS board"))
-        c.execute(text(
+def test_migrate_adds_board_sync_columns():
+    with connection() as db:
+        db.execute_sql("DROP TABLE IF EXISTS board")
+        db.execute_sql(
             "CREATE TABLE board (id INTEGER PRIMARY KEY, url VARCHAR, status VARCHAR)"
-        ))
-    board_cols = _board_cols()
-    assert "auto_resync" not in board_cols
-    _migrate()
-    board_cols = _board_cols()
-    assert {"auto_resync", "sync_checkpoint", "force_full_sync"} <= board_cols
+        )
+        assert "auto_resync" not in _cols("board")
+        _migrate(db)
+    assert {"auto_resync", "sync_checkpoint", "force_full_sync"} <= _cols("board")

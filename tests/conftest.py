@@ -15,27 +15,43 @@ os.environ["PINCHIVE_REDIS_URL"] = "redis://127.0.0.1:6399"  # closed -> fast re
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 from PIL import Image  # noqa: E402
-from sqlmodel import SQLModel  # noqa: E402
 
 from app import main  # noqa: E402
-from app.config import get_settings  # noqa: E402
-from app.db import engine, init_db  # noqa: E402
+from app.core.config import get_settings  # noqa: E402
+from app.core.db import bind, connection, init_db  # noqa: E402
+from app.models import ALL_TABLES  # noqa: E402
 
 settings = get_settings()
+
+
+def _drop_all() -> None:
+    with connection() as db:
+        # Reverse order so a child table never outlives its parent FK.
+        db.drop_tables(reversed(ALL_TABLES), safe=True)
 
 
 @pytest.fixture(autouse=True)
 def fresh_db():
     """Drop + recreate all tables around every test for isolation."""
-    SQLModel.metadata.drop_all(engine)
+    _drop_all()
     init_db()
     # clean any files a previous test wrote
     if settings.boards_dir.exists():
         for p in settings.boards_dir.glob("**/*"):
             if p.is_file():
                 p.unlink()
-    yield
-    SQLModel.metadata.drop_all(engine)
+    # Production code borrows a connection per unit of work (autoconnect is off),
+    # but tests touch the models directly for setup/assertions — so hold one open
+    # connection for the duration of each test.
+    db = bind()
+    if db.is_closed():
+        db.connect()
+    try:
+        yield
+    finally:
+        if not db.is_closed():
+            db.close()
+        _drop_all()
 
 
 @pytest.fixture(scope="session")

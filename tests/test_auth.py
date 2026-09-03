@@ -4,7 +4,7 @@ import time
 
 import httpx
 
-from app import auth
+from app.services import credential_service as auth
 
 
 def _cookie_path(tmp_path):

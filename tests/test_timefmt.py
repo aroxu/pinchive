@@ -1,6 +1,6 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from app.timefmt import format_datetime, local_datetime
+from app.core.timefmt import format_datetime, local_datetime
 
 
 def test_naive_sqlite_datetime_uses_configured_timezone(monkeypatch):
@@ -12,7 +12,7 @@ def test_naive_sqlite_datetime_uses_configured_timezone(monkeypatch):
 
 def test_aware_utc_datetime_uses_configured_timezone(monkeypatch):
     monkeypatch.setenv("TZ", "Asia/Seoul")
-    value = datetime(2026, 7, 15, 3, 30, tzinfo=timezone.utc)
+    value = datetime(2026, 7, 15, 3, 30, tzinfo=UTC)
 
     converted = local_datetime(value)
     assert converted is not None

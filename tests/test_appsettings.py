@@ -1,9 +1,9 @@
 """Runtime-editable settings store."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from app import appsettings
-from app.config import get_settings
+from app.core.config import get_settings
+from app.services import settings_service as appsettings
 
 
 def test_defaults_match_config():
@@ -32,7 +32,7 @@ def test_save_clamps_and_ignores_blank():
 
 
 def test_cron_matches():
-    dt = datetime(2026, 7, 6, 3, 30, tzinfo=timezone.utc)  # Monday 03:30
+    dt = datetime(2026, 7, 6, 3, 30, tzinfo=UTC)  # Monday 03:30
     assert appsettings.cron_matches("30 3 * * *", dt) is True
     assert appsettings.cron_matches("30 4 * * *", dt) is False
     assert appsettings.cron_matches("*/30 * * * *", dt) is True   # 0,30
@@ -43,7 +43,7 @@ def test_cron_matches():
 
 
 def test_cron_due_gate_and_disabled():
-    now = datetime(2026, 7, 6, 3, 30, tzinfo=timezone.utc)
+    now = datetime(2026, 7, 6, 3, 30, tzinfo=UTC)
     assert appsettings.cron_due("cron_never", "30 3 * * *", now) is True
     assert appsettings.cron_due("cron_x", "", now) is False        # disabled
     assert appsettings.cron_due("cron_x", "0 4 * * *", now) is False  # not now

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from app import dedup, downloader
+from app.services import dedup, downloader
 
 
 def test_build_command_minimal():

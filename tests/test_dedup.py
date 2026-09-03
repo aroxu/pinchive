@@ -2,7 +2,7 @@
 
 import shutil
 
-from app import dedup
+from app.services import dedup
 
 
 def _row(i, sha=None, ph=None):
