@@ -98,35 +98,44 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <div className="flex min-w-0 min-h-0 flex-1 flex-col">
         {/* Mobile top bar */}
-        <header className="bg-panel border-line flex shrink-0 items-center justify-between border-b px-4 py-3 lg:hidden">
-          <NavLink to="/" className="font-bold">
-            {t("app.name")}
-          </NavLink>
+        <header className="bg-panel border-line flex shrink-0 items-center gap-2 border-b px-3 py-3 lg:hidden">
           <Button
             size="sm"
             variant="ghost"
+            className="-ml-1"
             aria-label={t("nav.boards")}
+            aria-expanded={drawerOpen}
             onPress={() => setDrawerOpen((open) => !open)}
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+            <motion.svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              animate={{ rotate: drawerOpen ? 90 : 0 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+            >
               <path
-                d="M4 7h16M4 12h16M4 17h16"
+                d={drawerOpen ? "M6 6l12 12M18 6L6 18" : "M4 7h16M4 12h16M4 17h16"}
                 stroke="currentColor"
                 strokeWidth="2"
                 strokeLinecap="round"
                 fill="none"
               />
-            </svg>
+            </motion.svg>
           </Button>
+          <NavLink to="/" className="font-bold">
+            {t("app.name")}
+          </NavLink>
         </header>
 
         <AnimatePresence>
           {drawerOpen && (
             <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
+              initial={{ height: 0, opacity: 0, y: -8 }}
+              animate={{ height: "auto", opacity: 1, y: 0 }}
+              exit={{ height: 0, opacity: 0, y: -8 }}
+              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
               className="bg-panel border-line shrink-0 overflow-hidden border-b px-4 lg:hidden"
             >
               <div className="py-3">{nav}</div>

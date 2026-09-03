@@ -1,6 +1,6 @@
 import { Button, Card, Input, ProgressBar, Switch } from "@heroui/react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { api } from "../api/client";
@@ -136,12 +136,33 @@ export function BoardsPage() {
 function BoardCard({ board, onChanged }: { board: Board; onChanged: () => void }) {
   const { t } = useI18n();
   const [busy, setBusy] = useState(false);
+  const [autoResync, setAutoResync] = useState(board.auto_resync);
+
+  useEffect(() => setAutoResync(board.auto_resync), [board.auto_resync]);
 
   const act = async (fn: () => Promise<unknown>) => {
     setBusy(true);
     try {
       await fn();
       onChanged();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleAutoResync = async (selected: boolean) => {
+    if (busy) return;
+    const previous = autoResync;
+    // Keep the thumb moving continuously. Waiting for the parent query to
+    // refetch would briefly force the controlled switch back to its old value.
+    setAutoResync(selected);
+    setBusy(true);
+    try {
+      const updated = await api.toggleAutoResync(board.id);
+      setAutoResync(updated.auto_resync);
+      onChanged();
+    } catch {
+      setAutoResync(previous);
     } finally {
       setBusy(false);
     }
@@ -205,13 +226,12 @@ function BoardCard({ board, onChanged }: { board: Board; onChanged: () => void }
 
           <div className="border-line flex items-center justify-between border-t pt-3">
             <Switch
-              isSelected={board.auto_resync}
-              isDisabled={busy}
-              onChange={() => void act(() => api.toggleAutoResync(board.id))}
+              isSelected={autoResync}
+              onChange={(selected) => void toggleAutoResync(selected)}
             >
               <Switch.Content>
-                <Switch.Control>
-                  <Switch.Thumb />
+                <Switch.Control className="transition-colors duration-200 ease-out">
+                  <Switch.Thumb className="transition-transform duration-200 ease-out" />
                 </Switch.Control>
                 <span className="text-xs">{t("boards.auto_resync")}</span>
               </Switch.Content>
