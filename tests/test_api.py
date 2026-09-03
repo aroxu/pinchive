@@ -277,8 +277,10 @@ def test_pin_sort_by_name_and_recency(client):
 
 def test_pin_dupes_only_filter(client):
     bid = _mk_board(slug="dp")
+    other_bid = _mk_board(slug="dp-other")
     _mk_pin(bid, "dp/plain.jpg")
     _mk_pin(bid, "dp/dupe.jpg", dup_group=7)
+    _mk_pin(other_bid, "dp-other/dupe.jpg", dup_group=7)
     url = f"/api/boards/{bid}/pins?dupes=true"
     assert [p["filename"] for p in client.get(url).json()["items"]] == ["dupe.jpg"]
 
@@ -340,6 +342,17 @@ def test_bulk_empty_selection_noop(client):
     assert r.status_code == 200 and r.json()["affected"] == 0
 
 
+def test_duplicates_filter_ignores_orphaned_stored_group(client):
+    """Legacy stale dup_group metadata must not make one pin a duplicate."""
+    bid = _mk_board(slug="orphan", pin_count=1)
+    _mk_pin(bid, "orphan/only.jpg", dup_group=77)
+
+    body = client.get(f"/api/boards/{bid}/pins?dupes=true").json()
+
+    assert body["items"] == []
+    assert body["meta"]["total"] == 0
+
+
 # --------------------------------------------------------------------------- #
 # duplicates
 # --------------------------------------------------------------------------- #
@@ -377,6 +390,12 @@ def test_duplicates_detect_and_resolve(client, make_image):
     assert Pin.get_or_none(Pin.id == p2) is None
     assert Board.get_by_id(b2).pin_count == 0
     assert client.get("/api/duplicates").json()["items"] == []
+    # The surviving keeper must disappear from a board's "duplicates only"
+    # filter as soon as the group collapses to one pin.
+    survivor = Pin.get(Pin.board == b1)
+    assert survivor.dup_group is None
+    filtered = client.get(f"/api/boards/{b1}/pins?dupes=true").json()
+    assert filtered["items"] == []
 
 
 def test_resolve_all_keeps_highest_resolution(client, make_image):

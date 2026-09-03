@@ -51,7 +51,16 @@ def list_pins(
         if media_type in ("image", "video"):
             query = query.where(Pin.media_type == media_type)
         if dupes_only:
-            query = query.where(Pin.dup_group.is_null(False))
+            # Old databases may contain an orphaned dup_group left behind by
+            # a duplicate deletion performed before groups were reconciled.
+            # Only groups that still contain at least two pins are duplicates.
+            valid_groups = (
+                Pin.select(Pin.dup_group)
+                .where(Pin.dup_group.is_null(False))
+                .group_by(Pin.dup_group)
+                .having(fn.COUNT(Pin.id) >= 2)
+            )
+            query = query.where(Pin.dup_group.in_(valid_groups))
         total = query.count()
         pages = max(1, -(-total // per_page))
         page = min(max(1, page), pages)
@@ -173,6 +182,7 @@ def delete_pins(pin_ids: list[int], *, tombstone: bool = False) -> int:
         pins = list(Pin.select().where(Pin.id.in_(pin_ids)))
         if not pins:
             return 0
+        affected_dup_groups = {p.dup_group for p in pins if p.dup_group is not None}
         if tombstone:
             DeletedPin.insert_many(
                 [{"rel_path": p.rel_path, "deleted_at": now()} for p in pins]
@@ -180,6 +190,18 @@ def delete_pins(pin_ids: list[int], *, tombstone: bool = False) -> int:
         for p in pins:
             storage.delete(p.rel_path)
         deleted = Pin.delete().where(Pin.id.in_([p.id for p in pins])).execute()
+        # A precomputed duplicate group is meaningful only while at least two
+        # copies remain. Clear orphaned groups immediately so board-level
+        # "duplicates only" filters do not show the surviving keeper.
+        for group_id in affected_dup_groups:
+            remaining = (
+                Pin.select(fn.COUNT(Pin.id))
+                .where(Pin.dup_group == group_id)
+                .scalar()
+                or 0
+            )
+            if remaining < 2:
+                Pin.update(dup_group=None).where(Pin.dup_group == group_id).execute()
         for board_id in {p.board_id for p in pins}:
             _reconcile_board_counts(board_id)
     return deleted

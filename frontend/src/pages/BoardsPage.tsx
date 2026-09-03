@@ -210,11 +210,11 @@ function BoardCard({ board, onChanged }: { board: Board; onChanged: () => void }
               onChange={() => void act(() => api.toggleAutoResync(board.id))}
             >
               <Switch.Content>
+                <Switch.Control>
+                  <Switch.Thumb />
+                </Switch.Control>
                 <span className="text-xs">{t("boards.auto_resync")}</span>
               </Switch.Content>
-              <Switch.Control>
-                <Switch.Thumb />
-              </Switch.Control>
             </Switch>
 
             <div className="flex gap-1">

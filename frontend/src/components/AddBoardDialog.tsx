@@ -70,11 +70,11 @@ export function AddBoardDialog({
               <div className="flex flex-col gap-1.5">
                 <Switch isSelected={auto} onChange={setAuto}>
                   <Switch.Content>
+                    <Switch.Control>
+                      <Switch.Thumb />
+                    </Switch.Control>
                     <span className="text-sm">{t("boards.auto_auth")}</span>
                   </Switch.Content>
-                  <Switch.Control>
-                    <Switch.Thumb />
-                  </Switch.Control>
                 </Switch>
                 <span className="text-ink-dim text-xs">{t("boards.auto_auth_hint")}</span>
               </div>
