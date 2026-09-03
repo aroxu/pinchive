@@ -4,8 +4,9 @@ Self-hosted **Pinterest board archiver**. Paste a board URL — Pinchive pulls
 every pin (images + video) to your own disk. Public boards, and private boards
 via your session cookies. Inspired by [TubeArchivist](https://www.tubearchivist.com/).
 
-Dark, teal, ClickHouse-flavored UI. Low-footprint by design: FastAPI + HTMX +
-SQLite + gallery-dl, no Node build, no Elasticsearch.
+Dark, teal, ClickHouse-flavored UI. Low-footprint by design: FastAPI + SQLite +
+gallery-dl, with a React front end built once at image time. No Elasticsearch,
+no Node in the runtime image.
 
 ## Stack
 
@@ -13,9 +14,10 @@ SQLite + gallery-dl, no Node build, no Elasticsearch.
 |---|---|---|
 | Language | Python 3.12 | gallery-dl ecosystem lives here |
 | Download engine | **gallery-dl** | native Pinterest board support, cookie auth for private |
-| Web | **FastAPI** + **HTMX** + Jinja2 | server-rendered, no SPA build step |
-| Styling | hand-written CSS (design tokens) | dark-only, no Tailwind/Node in the image |
-| DB | **SQLite** (WAL) | single file, no server |
+| API | **FastAPI** | typed JSON API, one contract for UI and worker |
+| Front end | **React 19** + **HeroUI** + **Framer Motion** | component library with built-in a11y; animated screen transitions |
+| Styling | **Tailwind CSS 4** + design tokens | HeroUI is Tailwind-native; dark-only palette |
+| DB | **SQLite** (WAL) via **Peewee** | single file, no server, lightweight query builder |
 | Queue / cron | **arq** + Redis | async worker + scheduled credential refresh |
 | Deploy | Docker Compose | `web` + `worker` + `redis` |
 
@@ -104,8 +106,10 @@ cookies for that credential.
   **auto-sync** per board from its card to opt individual boards out; use
   **Force full sync** on the board page only when an end-to-end scan is needed.
 - **Multilingual UI** (English / 한국어). Auto-detects from `Accept-Language`;
-  switch from the nav (choice persists in a cookie). Add a language by extending
-  the catalogs in [app/i18n.py](app/i18n.py) — no gettext toolchain.
+  switch from Settings (the choice persists in a cookie). Add a language by
+  extending the catalogue in
+  [frontend/src/i18n/catalogue.ts](frontend/src/i18n/catalogue.ts) — no gettext
+  toolchain.
 
 Each board keeps its **own** `--download-archive` and newest-ten checkpoint, so
 a board stays a faithful mirror (a pin shared across boards downloads into each)
@@ -115,13 +119,21 @@ Redundancy is surfaced by the Duplicates view, not silently dropped.
 ## Local dev (no Docker)
 
 ```bash
+# backend
 python -m venv .venv && . .venv/Scripts/activate   # PowerShell: .venv\Scripts\Activate.ps1
-pip install -e .
-powershell -File scripts/fetch_assets.ps1          # htmx + fonts (fonts optional)
+pip install -e ".[dev]"
 redis-server &                                     # or a container
-uvicorn app.main:app --reload
-arq app.tasks.WorkerSettings                        # separate terminal
+uvicorn app.main:app --reload                      # API on :8000
+arq app.worker.WorkerSettings                      # separate terminal
+
+# frontend (separate terminal)
+cd frontend && npm ci
+npm run dev                                        # :5173, proxies /api + /media
 ```
+
+`npm run dev` gives hot reload against the local API. To serve the production
+bundle from uvicorn instead (what the image does), run `npm run build` once —
+FastAPI picks up `frontend/dist` automatically.
 
 ## Configuration
 
@@ -134,14 +146,22 @@ Key ones: `MAX_CONCURRENCY` (parallel downloads), `DL_SLEEP` (politeness delay),
 
 ```
 app/
-  main.py         FastAPI routes + HTMX partials
-  tasks.py        arq worker: download_board, refresh cron
-  downloader.py   gallery-dl subprocess wrapper + progress parsing
-  auth.py         cookie normalise (Netscape/JSON) + liveness check
-  dedup.py        sha256 + perceptual dHash + duplicate grouping
-  models.py       Board / Pin / Credential / Tag
-templates/  static/   Jinja2 + design-token CSS
+  main.py         app factory: routers, /media mount, SPA serving
+  worker.py       arq worker: jobs + crontab dispatcher
+  core/           config, Peewee database, locale middleware, time formatting
+  models/         Peewee tables (Board / Pin / Credential / Tag / …)
+  api/            routers + Pydantic schemas (the JSON API)
+  services/       business logic: sync, dedup, storage, settings, credentials
+frontend/
+  src/pages/      Boards / BoardDetail / Duplicates / Settings
+  src/components/ app shell, pin card, lightbox, shared UI
+  src/api/        typed client mirroring app/api/schemas.py
+  src/i18n/       EN/KO catalogue
 ```
+
+The dependency direction is one-way: `core → models → services → api`. Services
+own every DB and filesystem access, so the API layer and the worker share one
+implementation of every rule.
 
 ## Notes
 
@@ -150,5 +170,8 @@ templates/  static/   Jinja2 + design-token CSS
   `--download-archive` still prevents existing files from downloading again.
 - No shadows anywhere — depth is pure canvas/card contrast, per the design system.
 - ffmpeg is bundled in the image for muxing video pins.
+- Media access goes through a storage abstraction; object-storage support is
+  designed in [docs/storage-backends.md](docs/storage-backends.md) (local disk is
+  what ships today).
 
 MIT.
