@@ -105,7 +105,11 @@
 html,
 body,
 #root {
-  min-height: 100%;
+  /* The app shell owns scrolling (see AppShell), so the document itself must be
+     exactly the viewport — a min-height here would let the page grow and scroll
+     the sidebar along with the content. */
+  height: 100%;
+  overflow: hidden;
 }
 
 body {

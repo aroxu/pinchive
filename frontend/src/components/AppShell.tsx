@@ -81,9 +81,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   );
 
   return (
-    <div className="flex min-h-screen">
+    // The shell is pinned to the viewport (h-screen + overflow-hidden) so the
+    // sidebar and the mobile bar stay put; only the content column scrolls.
+    <div className="flex h-screen overflow-hidden">
       {/* Desktop sidebar */}
-      <aside className="bg-panel border-line hidden w-60 shrink-0 flex-col justify-between border-r p-5 lg:flex">
+      <aside className="bg-panel border-line hidden h-full w-60 shrink-0 flex-col justify-between overflow-y-auto border-r p-5 lg:flex">
         <div className="flex flex-col gap-6">
           <NavLink to="/" className="flex flex-col">
             <span className="text-lg font-bold tracking-tight">{t("app.name")}</span>
@@ -94,9 +96,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         {footer}
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 min-h-0 flex-1 flex-col">
         {/* Mobile top bar */}
-        <header className="bg-panel border-line flex items-center justify-between border-b px-4 py-3 lg:hidden">
+        <header className="bg-panel border-line flex shrink-0 items-center justify-between border-b px-4 py-3 lg:hidden">
           <NavLink to="/" className="font-bold">
             {t("app.name")}
           </NavLink>
@@ -125,14 +127,21 @@ export function AppShell({ children }: { children: ReactNode }) {
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
-              className="bg-panel border-line overflow-hidden border-b px-4 lg:hidden"
+              className="bg-panel border-line shrink-0 overflow-hidden border-b px-4 lg:hidden"
             >
               <div className="py-3">{nav}</div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        <div className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</div>
+        {/* The one scroll container in the app; the lightbox locks it by this
+            attribute while it is open. */}
+        <div
+          data-app-scroll
+          className="min-w-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8"
+        >
+          {children}
+        </div>
       </div>
     </div>
   );

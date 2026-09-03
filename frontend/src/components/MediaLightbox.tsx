@@ -24,12 +24,15 @@ export function MediaLightbox({
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
-    // Freeze the page behind the overlay so scrolling does not leak through.
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    // Freeze the page behind the overlay. The app shell scrolls its content
+    // column, not <body>, so locking body overflow here would do nothing —
+    // target the actual scroll container.
+    const scroller = document.querySelector<HTMLElement>("[data-app-scroll]");
+    const previous = scroller?.style.overflowY ?? "";
+    if (scroller) scroller.style.overflowY = "hidden";
     return () => {
       window.removeEventListener("keydown", onKey);
-      document.body.style.overflow = previous;
+      if (scroller) scroller.style.overflowY = previous;
     };
   }, [pin, onClose]);
 
