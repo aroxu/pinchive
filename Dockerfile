@@ -1,11 +1,13 @@
 # syntax=docker/dockerfile:1
 
-# ---- assets stage: fetch vendored JS + fonts (best-effort) ----
-FROM alpine:3.20 AS assets
-RUN apk add --no-cache curl bash
-WORKDIR /assets
-COPY scripts/fetch_assets.sh ./fetch_assets.sh
-RUN bash fetch_assets.sh /assets
+# ---- frontend stage: build the React client ----
+FROM node:22-alpine AS frontend
+WORKDIR /ui
+# Install from the lockfile first so dependency layers cache across code edits.
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
 
 # ---- runtime stage ----
 FROM python:3.12-slim AS runtime
@@ -33,16 +35,11 @@ COPY pyproject.toml README.md ./
 COPY app ./app
 RUN pip install --no-cache-dir .
 
-# Project static + templates first...
-COPY static ./static
-COPY templates ./templates
+# The built SPA. app/main.py serves it from frontend/dist (index.html plus the
+# hashed assets/ bundle), with an index.html fallback for client-side routes.
+COPY --from=frontend /ui/dist ./frontend/dist
 
-# ...then overlay vendored assets fetched in the assets stage so they win.
-COPY --from=assets /assets/htmx.min.js ./static/js/htmx.min.js
-COPY --from=assets /assets/idiomorph-ext.min.js ./static/js/idiomorph-ext.min.js
-COPY --from=assets /assets/fonts/ ./static/fonts/
-
-# Resolve `import app` to the /app source tree (next to templates/ + static/)
+# Resolve `import app` to the /app source tree (next to frontend/dist)
 # rather than the copy pip put in site-packages, so BASE_DIR points at /app.
 ENV PYTHONPATH=/app
 

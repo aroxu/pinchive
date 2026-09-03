@@ -10,14 +10,16 @@ venv/
 # App data (downloads, db, cookies)
 /data/
 !/data/.gitkeep
+# Scratch data dir used when driving a local server by hand.
+/.devdata/
 
 # Secrets
 .env
 
-# Fonts fetched at build time
-/static/fonts/*.woff2
+# Front end
+/frontend/node_modules/
+/frontend/dist/
 
 # OS
 .DS_Store
 Thumbs.db
-static/js/htmx.min.js

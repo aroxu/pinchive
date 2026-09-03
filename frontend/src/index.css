@@ -1,0 +1,146 @@
+@import "tailwindcss";
+@import "@heroui/styles";
+
+/* Pinchive design tokens. Near-black canvas, electric teal accent, no shadows,
+   ~13px radii — carried over from the previous UI so the visual identity holds
+   across the React rewrite. */
+@theme {
+  --color-canvas: #0b0d0d;
+  --color-panel: #0f1212;
+  --color-card: #161a1a;
+  --color-card-raised: #1d2222;
+  --color-line: #232828;
+  --color-accent: #2e999c;
+  --color-accent-soft: #2e999c26;
+  --color-ink: #f2f5f5;
+  --color-ink-dim: #98a3a3;
+
+  --radius-panel: 13px;
+
+  --font-sans: "Inter", "Noto Sans KR", "Pretendard", "Segoe UI",
+    "Malgun Gothic", -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", monospace;
+}
+
+/* Re-point HeroUI's theme variables at the Pinchive palette, so every HeroUI
+   component (buttons, cards, inputs, modals, switches) picks up the teal accent
+   and the near-black surfaces instead of the stock blue-on-grey defaults.
+   `.dark` is on <html>, which is the selector HeroUI's dark theme keys off. */
+@layer base {
+  :root,
+  .dark,
+  [data-theme="dark"] {
+    --background: var(--color-canvas);
+    --background-secondary: var(--color-panel);
+    --foreground: var(--color-ink);
+
+    --surface: var(--color-card);
+    --surface-foreground: var(--color-ink);
+    --surface-secondary: var(--color-card-raised);
+    --surface-secondary-foreground: var(--color-ink);
+    --surface-tertiary: var(--color-card-raised);
+    --surface-tertiary-foreground: var(--color-ink);
+
+    --overlay: var(--color-panel);
+    --overlay-foreground: var(--color-ink);
+
+    --muted: var(--color-ink-dim);
+
+    --default: var(--color-card-raised);
+    --default-foreground: var(--color-ink);
+
+    --accent: var(--color-accent);
+    --accent-foreground: #04100f;
+
+    --field-background: var(--color-card-raised);
+    --field-foreground: var(--color-ink);
+    --field-placeholder: var(--color-ink-dim);
+
+    --border: var(--color-line);
+    --separator: var(--color-line);
+    --focus: var(--color-accent);
+    --link: var(--color-ink);
+
+    --radius: 0.5rem;
+    /* Flat by design: depth comes from canvas/card contrast, never shadows. */
+    --shadow: none;
+  }
+}
+
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/Inter.var.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Noto Sans KR";
+  src: url("/fonts/NotoSansKR-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Noto Sans KR";
+  src: url("/fonts/NotoSansKR-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Pretendard";
+  src: url("/fonts/Pretendard-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/JetBrainsMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  /* Korean must not break mid-word. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+/* Masonry pin grid: CSS columns keep tall pins from stretching their row. */
+/* HeroUI's typography reset underlines headings; Pinchive headings are plain. */
+h1,
+h2,
+h3 {
+  text-decoration: none;
+}
+
+.masonry {
+  column-gap: 0.75rem;
+}
+
+.masonry > * {
+  margin-bottom: 0.75rem;
+  break-inside: avoid;
+}
+
+/* Respect users who ask for less motion: Framer Motion reads this too, but the
+   CSS guard covers transitions we author directly. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

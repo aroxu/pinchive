@@ -47,7 +47,7 @@ services:
   worker:
     image: ghcr.io/aroxu/pinchive:${PINCHIVE_TAG:-latest}
     restart: unless-stopped
-    command: ["arq", "app.tasks.WorkerSettings"]
+    command: ["arq", "app.worker.WorkerSettings"]
     env_file:
       - path: .env
         required: false

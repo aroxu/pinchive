@@ -52,7 +52,7 @@ services:
       TZ: ${TZ:-UTC}
       PINCHIVE_REDIS_URL: redis://redis:6379
       PINCHIVE_DATA_DIR: /data
-    command: ["arq", "app.tasks.WorkerSettings"]
+    command: ["arq", "app.worker.WorkerSettings"]
     volumes:
       - ./data:/data
     depends_on:
