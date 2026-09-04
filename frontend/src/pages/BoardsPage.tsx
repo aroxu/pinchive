@@ -6,6 +6,7 @@ import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import type { Board } from "../api/types";
 import { AddBoardDialog } from "../components/AddBoardDialog";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import {
   EmptyState,
   ErrorNote,
@@ -137,17 +138,28 @@ function BoardCard({ board, onChanged }: { board: Board; onChanged: () => void }
   const { t } = useI18n();
   const [busy, setBusy] = useState(false);
   const [autoResync, setAutoResync] = useState(board.auto_resync);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => setAutoResync(board.auto_resync), [board.auto_resync]);
 
   const act = async (fn: () => Promise<unknown>) => {
     setBusy(true);
+    setActionError(null);
     try {
       await fn();
       onChanged();
+    } catch (err) {
+      // Silence here is what made a failed delete look like a dead button.
+      setActionError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
     }
+  };
+
+  const deleteBoard = async () => {
+    await act(() => api.deleteBoard(board.id));
+    setConfirmingDelete(false);
   };
 
   const toggleAutoResync = async (selected: boolean) => {
@@ -224,6 +236,12 @@ function BoardCard({ board, onChanged }: { board: Board; onChanged: () => void }
             </p>
           ) : null}
 
+          {actionError ? (
+            <p className="text-xs text-red-300" title={actionError}>
+              {actionError}
+            </p>
+          ) : null}
+
           <div className="border-line flex items-center justify-between border-t pt-3">
             <Switch
               isSelected={autoResync}
@@ -250,11 +268,7 @@ function BoardCard({ board, onChanged }: { board: Board; onChanged: () => void }
                 size="sm"
                 variant="ghost"
                 isDisabled={busy}
-                onPress={() => {
-                  if (window.confirm(t("boards.delete_confirm"))) {
-                    void act(() => api.deleteBoard(board.id));
-                  }
-                }}
+                onPress={() => setConfirmingDelete(true)}
               >
                 {t("boards.delete")}
               </Button>
@@ -262,6 +276,16 @@ function BoardCard({ board, onChanged }: { board: Board; onChanged: () => void }
           </div>
         </Card.Content>
       </Card>
+
+      <ConfirmDialog
+        isOpen={confirmingDelete}
+        title={t("boards.delete")}
+        message={t("boards.delete_confirm")}
+        confirmLabel={t("boards.delete")}
+        isBusy={busy}
+        onConfirm={() => void deleteBoard()}
+        onClose={() => setConfirmingDelete(false)}
+      />
     </motion.div>
   );
 }

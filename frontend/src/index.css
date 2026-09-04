@@ -112,6 +112,30 @@ body,
   overflow: hidden;
 }
 
+/* Phones: 100% resolves against a viewport that includes the collapsible
+   browser chrome, so the last row of content sits below the address bar.
+   The dynamic viewport unit tracks the actually visible area. */
+@supports (height: 100dvh) {
+  html,
+  body,
+  #root {
+    height: 100dvh;
+  }
+}
+
+/* One height source for the shell: vh first, dvh where supported. Two Tailwind
+   height utilities on the same element would leave the winner to source order
+   in the generated stylesheet. */
+.app-shell {
+  height: 100vh;
+}
+
+@supports (height: 100dvh) {
+  .app-shell {
+    height: 100dvh;
+  }
+}
+
 body {
   background-color: var(--color-canvas);
   color: var(--color-ink);

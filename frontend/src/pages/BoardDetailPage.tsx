@@ -6,6 +6,7 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import type { Pin } from "../api/types";
 import { MediaLightbox } from "../components/MediaLightbox";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { PinCard } from "../components/PinCard";
 import {
   EmptyState,
@@ -51,6 +52,7 @@ export function BoardDetailPage() {
   const [preview, setPreview] = useState<Pin | null>(null);
   const [tagName, setTagName] = useState("");
   const [logOpen, setLogOpen] = useState(false);
+  const [confirmingBulkDelete, setConfirmingBulkDelete] = useState(false);
 
   const board = useQuery(() => api.board(id), [id], {
     pollMs: 4000,
@@ -79,9 +81,6 @@ export function BoardDetailPage() {
 
   const bulk = async (action: string) => {
     if (selectedIds.length === 0) return;
-    if (action === "delete" && !window.confirm(t("board.bulk_delete_confirm", { n: selectedIds.length }))) {
-      return;
-    }
     await api.bulkPins({ pin_ids: selectedIds, name: tagName, action });
     setSelected(new Set());
     pins.refresh();
@@ -198,7 +197,11 @@ export function BoardDetailPage() {
               <Button size="sm" variant="ghost" onPress={() => void bulk("remove")}>
                 {t("board.bulk_untag")}
               </Button>
-              <Button size="sm" variant="danger" onPress={() => void bulk("delete")}>
+              <Button
+                size="sm"
+                variant="danger"
+                onPress={() => setConfirmingBulkDelete(true)}
+              >
                 {t("board.bulk_delete")}
               </Button>
               <Button size="sm" variant="ghost" onPress={() => setSelected(new Set())}>
@@ -267,6 +270,18 @@ export function BoardDetailPage() {
       ) : null}
 
       <MediaLightbox pin={preview} onClose={() => setPreview(null)} />
+
+      <ConfirmDialog
+        isOpen={confirmingBulkDelete}
+        title={t("board.bulk_delete")}
+        message={t("board.bulk_delete_confirm", { n: selectedIds.length })}
+        confirmLabel={t("board.bulk_delete")}
+        onConfirm={() => {
+          setConfirmingBulkDelete(false);
+          void bulk("delete");
+        }}
+        onClose={() => setConfirmingBulkDelete(false)}
+      />
     </div>
   );
 }

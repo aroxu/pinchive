@@ -81,9 +81,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   );
 
   return (
-    // The shell is pinned to the viewport (h-screen + overflow-hidden) so the
-    // sidebar and the mobile bar stay put; only the content column scrolls.
-    <div className="flex h-screen overflow-hidden">
+    // The shell is pinned to the viewport so the sidebar and the mobile bar
+    // stay put; only the content column scrolls. Height is dvh (with a vh
+    // fallback): on phones 100vh counts the retracted browser chrome, which
+    // pushed the bottom of the app under the address bar.
+    <div className="app-shell flex overflow-hidden">
       {/* Desktop sidebar */}
       <aside className="bg-panel border-line hidden h-full w-60 shrink-0 flex-col justify-between overflow-y-auto border-r p-5 lg:flex">
         <div className="flex flex-col gap-6">
@@ -147,7 +149,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             attribute while it is open. */}
         <div
           data-app-scroll
-          className="min-w-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8"
+          className="min-w-0 flex-1 overflow-y-auto px-4 pt-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:px-6 lg:px-8"
         >
           {children}
         </div>

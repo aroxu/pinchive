@@ -5,6 +5,7 @@ import { useState } from "react";
 import { api } from "../api/client";
 import type { DedupStatus, Pin } from "../api/types";
 import { MediaLightbox } from "../components/MediaLightbox";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { EmptyState, ErrorNote, Loading, PageHeader, Pager } from "../components/common";
 import { useQuery } from "../hooks/useQuery";
 import { useI18n } from "../i18n";
@@ -14,6 +15,7 @@ export function DuplicatesPage() {
   const [page, setPage] = useState(1);
   const [preview, setPreview] = useState<Pin | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmingDeleteAll, setConfirmingDeleteAll] = useState(false);
 
   // Status polls continuously so a scan started elsewhere still shows up here.
   const status = useQuery(() => api.dedupStatus(), [], { pollMs: 2000 });
@@ -62,11 +64,7 @@ export function DuplicatesPage() {
               size="sm"
               variant="danger"
               isDisabled={busy || running || (status.data?.removable ?? 0) === 0}
-              onPress={() => {
-                if (window.confirm(t("dupes.delete_all_confirm"))) {
-                  void act(() => api.resolveDuplicates({ all: true }));
-                }
-              }}
+              onPress={() => setConfirmingDeleteAll(true)}
             >
               {t("dupes.delete_all")}
             </Button>
@@ -156,6 +154,19 @@ export function DuplicatesPage() {
       />
 
       <MediaLightbox pin={preview} onClose={() => setPreview(null)} />
+
+      <ConfirmDialog
+        isOpen={confirmingDeleteAll}
+        title={t("dupes.delete_all")}
+        message={t("dupes.delete_all_confirm")}
+        confirmLabel={t("dupes.delete_all")}
+        isBusy={busy}
+        onConfirm={() => {
+          setConfirmingDeleteAll(false);
+          void act(() => api.resolveDuplicates({ all: true }));
+        }}
+        onClose={() => setConfirmingDeleteAll(false)}
+      />
     </div>
   );
 }
