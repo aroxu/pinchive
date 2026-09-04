@@ -149,17 +149,20 @@ function BoardCard({ board, onChanged }: { board: Board; onChanged: () => void }
     try {
       await fn();
       onChanged();
+      return true;
     } catch (err) {
       // Silence here is what made a failed delete look like a dead button.
       setActionError(err instanceof Error ? err.message : String(err));
+      return false;
     } finally {
       setBusy(false);
     }
   };
 
   const deleteBoard = async () => {
-    await act(() => api.deleteBoard(board.id));
-    setConfirmingDelete(false);
+    // Keep the dialog open on failure so the reason is visible where the user
+    // is looking; closing it is what made a failed delete feel like a no-op.
+    if (await act(() => api.deleteBoard(board.id))) setConfirmingDelete(false);
   };
 
   const toggleAutoResync = async (selected: boolean) => {
@@ -283,8 +286,13 @@ function BoardCard({ board, onChanged }: { board: Board; onChanged: () => void }
         message={t("boards.delete_confirm")}
         confirmLabel={t("boards.delete")}
         isBusy={busy}
+        busyLabel={t("boards.deleting")}
+        error={actionError}
         onConfirm={() => void deleteBoard()}
-        onClose={() => setConfirmingDelete(false)}
+        onClose={() => {
+          setConfirmingDelete(false);
+          setActionError(null);
+        }}
       />
     </motion.div>
   );
