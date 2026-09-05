@@ -11,8 +11,9 @@ import functools
 import logging
 import sys
 
-from arq import cron
+from arq import Retry, cron
 from arq.connections import RedisSettings
+from peewee import OperationalError
 
 from app.core.config import get_settings
 from app.models import Board, BoardStatus, init_db
@@ -35,11 +36,30 @@ async def _run(func, *args, **kwargs):
     return await loop.run_in_executor(None, functools.partial(func, *args, **kwargs))
 
 
+def _retry_if_database_locked(ctx: dict, exc: OperationalError) -> None:
+    """Turn a residual SQLite writer collision into an arq retry.
+
+    ``BEGIN IMMEDIATE`` and the busy timeout handle normal contention. This is a
+    final safety net for unusually slow storage or maintenance operations so a
+    queued board is not silently abandoned.
+    """
+    if "database is locked" not in str(exc).lower():
+        raise exc
+    attempt = max(1, int(ctx.get("job_try", 1)))
+    delay = min(2 ** (attempt - 1), 30)
+    logger.warning("database busy; retrying job in %ss (attempt %s)", delay, attempt)
+    raise Retry(defer=delay) from exc
+
+
 # --------------------------------------------------------------------------- #
 # jobs
 # --------------------------------------------------------------------------- #
 async def download_board(ctx: dict, board_id: int, force_full: bool = False) -> dict:
-    return await _run(sync_service.run_board_sync, board_id, force_full=force_full)
+    try:
+        return await _run(sync_service.run_board_sync, board_id, force_full=force_full)
+    except OperationalError as exc:
+        _retry_if_database_locked(ctx, exc)
+        raise  # pragma: no cover - helper always raises
 
 
 async def refresh_credential(ctx: dict, cred_id: int) -> dict:

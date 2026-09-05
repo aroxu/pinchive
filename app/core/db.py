@@ -19,14 +19,16 @@ from peewee import SqliteDatabase
 from app.core.config import get_settings
 
 # `pragmas` are applied to every new connection, so WAL/busy_timeout hold for
-# both processes. autoconnect=False makes connection lifetime explicit: a leaked
+# both processes. Give ordinary web/worker write contention time to drain; an
+# immediate transaction below also avoids SQLite's no-wait read->write upgrade
+# deadlock. autoconnect=False makes connection lifetime explicit: a leaked
 # connection in a threadpool worker would otherwise pin a stale snapshot.
 database = SqliteDatabase(
     None,
     pragmas={
         "journal_mode": "wal",
         "synchronous": 1,          # NORMAL
-        "busy_timeout": 5000,
+        "busy_timeout": 30_000,
         "foreign_keys": 1,
     },
     autoconnect=False,
@@ -67,9 +69,18 @@ def connection() -> Iterator[SqliteDatabase]:
 
 @contextmanager
 def transaction() -> Iterator[SqliteDatabase]:
-    """Connection + atomic block: commits on success, rolls back on error."""
-    with connection() as db, db.atomic():
-        yield db
+    """Connection + write transaction: commits on success, rolls back on error.
+
+    ``BEGIN IMMEDIATE`` reserves SQLite's single writer slot before any SELECT.
+    With a deferred transaction, two processes can both read and then attempt to
+    upgrade to writers; SQLite must reject one immediately because waiting would
+    deadlock, even when ``busy_timeout`` is configured.
+    """
+    with connection() as db:
+        # A nested transaction is a savepoint and does not accept a lock type.
+        atomic = db.atomic() if db.in_transaction() else db.atomic("IMMEDIATE")
+        with atomic:
+            yield db
 
 
 def create_schema(tables) -> None:
