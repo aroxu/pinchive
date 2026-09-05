@@ -21,7 +21,11 @@ export function DuplicatesPage() {
 
   // Status polls continuously so a scan started elsewhere still shows up here.
   const status = useQuery(() => api.dedupStatus(), [], { pollMs: 2000 });
-  const running = status.data?.running ?? false;
+  // Never keep presenting stale "Scanning…" data after the status endpoint
+  // has failed. Re-scan stays disabled until status is known again, preventing
+  // an accidental second job while the first one may still be active.
+  const statusUnavailable = status.error !== null;
+  const running = statusUnavailable ? false : (status.data?.running ?? false);
 
   const groups = useQuery(
     () => api.duplicates(page),
@@ -59,7 +63,7 @@ export function DuplicatesPage() {
             <Button
               size="sm"
               variant="ghost"
-              isDisabled={busy || running}
+              isDisabled={busy || running || statusUnavailable}
               onPress={() => void act(() => api.rescanDuplicates())}
             >
               {running ? t("dupes.rescanning") : t("dupes.rescan")}
@@ -67,7 +71,9 @@ export function DuplicatesPage() {
             <Button
               size="sm"
               variant="danger"
-              isDisabled={busy || running || (status.data?.removable ?? 0) === 0}
+              isDisabled={
+                busy || running || statusUnavailable || (status.data?.removable ?? 0) === 0
+              }
               onPress={() => setConfirmingDeleteAll(true)}
             >
               {t("dupes.delete_all")}
@@ -82,6 +88,7 @@ export function DuplicatesPage() {
         <ScanStatus status={status.data} />
       </div>
 
+      {status.error ? <ErrorNote message={status.error} onRetry={status.refresh} /> : null}
       {groups.error ? <ErrorNote message={groups.error} onRetry={groups.refresh} /> : null}
 
       {groups.loading && items.length === 0 ? (
@@ -192,15 +199,33 @@ function ScanStatus({ status }: { status: DedupStatus | null | undefined }) {
   const { t } = useI18n();
   if (!status?.phase) return null;
   const label =
-    status.phase === "hashing"
+    status.phase === "preparing"
+      ? t("dupes.phase.preparing")
+      : status.phase === "hashing"
       ? t("dupes.phase.hashing", { cur: status.cur ?? 0, total: status.total ?? 0 })
+      : status.phase === "saving"
+        ? t("dupes.phase.saving", { cur: status.cur ?? 0, total: status.total ?? 0 })
       : status.phase === "grouping"
-        ? t("dupes.phase.grouping")
+        ? (status.total ?? 0) > 0
+          ? t("dupes.phase.grouping_progress", {
+              cur: status.cur ?? 0,
+              total: status.total ?? 0,
+            })
+          : t("dupes.phase.grouping")
         : status.phase === "queued"
           ? t("dupes.phase.queued")
+          : status.phase === "failed"
+            ? t("dupes.phase.failed")
           : status.at
             ? t("dupes.phase.done", { at: new Date(status.at).toLocaleString() })
             : null;
   if (!label) return null;
-  return <span className="text-ink-dim font-mono text-xs">{label}</span>;
+  return (
+    <span
+      className={status.phase === "failed" ? "font-mono text-xs text-red-300" : "text-ink-dim font-mono text-xs"}
+      title={status.error}
+    >
+      {label}
+    </span>
+  );
 }

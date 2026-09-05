@@ -3,11 +3,13 @@
 import asyncio
 import json
 import shutil
-from datetime import UTC
+from datetime import UTC, datetime, timedelta
+
+import pytest
 
 from app.core.config import get_settings
 from app.models import Board, BoardStatus, Pin
-from app.services import settings_service, sync_service
+from app.services import dedup_service, settings_service, sync_service
 from app.services.board_service import (
     board_folder,
     checkpoint_from_existing_pins,
@@ -326,6 +328,77 @@ def test_recompute_duplicates_hashes_and_groups(make_image):
     # Both share one non-null dup_group.
     assert pins[0].dup_group is not None
     assert pins[0].dup_group == pins[1].dup_group
+
+
+def test_recompute_failure_clears_running_status(monkeypatch):
+    def fail_before_hashing():
+        raise RuntimeError("broken media index")
+
+    monkeypatch.setattr(dedup_service, "_pins_needing_hashes", fail_before_hashing)
+
+    with pytest.raises(RuntimeError, match="broken media index"):
+        dedup_service.recompute()
+
+    status = dedup_service.get_status()
+    assert status["running"] is False
+    assert status["phase"] == "failed"
+    assert status["error"] == "broken media index"
+
+
+def test_stale_dedup_heartbeat_is_not_reported_as_running():
+    old = (datetime.now(UTC) - timedelta(hours=1)).isoformat()
+    settings_service.set_raw(
+        "_dedup_status",
+        json.dumps({
+            "running": True,
+            "phase": "hashing",
+            "cur": 12,
+            "total": 100,
+            "updated_at": old,
+        }),
+    )
+
+    status = dedup_service.get_status()
+
+    assert status["running"] is False
+    assert status["phase"] == "failed"
+    assert "stopped" in status["error"]
+
+
+def test_worker_restart_clears_live_dedup_status():
+    dedup_service.set_status(running=True, phase="hashing", cur=5, total=10)
+
+    assert dedup_service.recover_interrupted_status() is True
+    status = dedup_service.get_status()
+    assert status["running"] is False
+    assert status["phase"] == "failed"
+    assert "restart" in status["error"]
+
+
+def test_hashless_image_is_not_rehashed_forever(monkeypatch):
+    bid = Board.create(
+        url="https://x/u/flat/", slug="flat", status=BoardStatus.done.value,
+    ).id
+    folder = board_folder("flat", bid)
+    dest = settings.boards_dir / folder
+    dest.mkdir(parents=True, exist_ok=True)
+    path = dest / "flat.jpg"
+    path.write_bytes(b"previously hashed but visually unusable")
+    Pin.create(
+        board=bid,
+        rel_path=f"{folder}/flat.jpg",
+        filename="flat.jpg",
+        media_type="image",
+        content_sha256="known-sha",
+        phash=None,
+    )
+
+    def must_not_hash(*_args, **_kwargs):
+        raise AssertionError("hashless image was rehashed")
+
+    monkeypatch.setattr(dedup_service.dedup, "compute", must_not_hash)
+
+    assert dedup_service.recompute()["hashed"] == 0
 
 
 def test_sync_partial_pins_creates_rows_incrementally(make_image):

@@ -135,6 +135,8 @@ async def _startup(ctx: dict) -> None:
     settings.ensure_dirs()
     init_db()
     configure_download_logging()
+    if await _run(dedup_service.recover_interrupted_status):
+        logger.warning("cleared interrupted duplicate scan status")
     await _resume_interrupted(ctx)
 
 

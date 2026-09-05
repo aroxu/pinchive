@@ -11,6 +11,8 @@ import json
 import logging
 import os
 import time
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from app.core.db import connection, transaction
@@ -22,10 +24,14 @@ from app.services.storage import get_storage
 logger = logging.getLogger("pinchive.dedup")
 
 _STATUS_KEY = "_dedup_status"
+_ACTIVE_PHASES = {"preparing", "hashing", "saving", "grouping"}
+_STALE_AFTER = timedelta(minutes=5)
+_WRITE_BATCH_SIZE = 256
 
 
 def set_status(**st) -> None:
     """Persist a small JSON progress blob the UI polls (live status)."""
+    st["updated_at"] = now().isoformat()
     try:
         settings_service.set_raw(_STATUS_KEY, json.dumps(st))
     except Exception:  # noqa: BLE001 — status is best-effort, never fail the job
@@ -40,7 +46,52 @@ def get_status() -> dict:
         parsed = json.loads(raw)
     except ValueError:
         return {}
-    return parsed if isinstance(parsed, dict) else {}
+    if not isinstance(parsed, dict):
+        return {}
+
+    # A worker can be killed without reaching the exception handler. Active
+    # phases emit a heartbeat, so an old timestamp means the calculation is no
+    # longer making progress. Clear the sticky running flag instead of making
+    # the UI say "Scanning…" forever. Queued jobs are exempt because they can
+    # legitimately wait behind a long board download.
+    if parsed.get("running") and parsed.get("phase") in _ACTIVE_PHASES:
+        stamp = parsed.get("updated_at")
+        try:
+            updated = datetime.fromisoformat(stamp) if stamp else None
+        except (TypeError, ValueError):
+            updated = None
+        current = now()
+        if updated is not None and updated.tzinfo is None:
+            updated = updated.replace(tzinfo=current.tzinfo)
+        if updated is None or current - updated > _STALE_AFTER:
+            parsed.update(
+                running=False,
+                phase="failed",
+                error="Duplicate scan stopped before completion.",
+                updated_at=current.isoformat(),
+            )
+            try:
+                settings_service.set_raw(_STATUS_KEY, json.dumps(parsed))
+            except Exception:  # noqa: BLE001 — recovery remains best-effort
+                pass
+    return parsed
+
+
+def recover_interrupted_status() -> bool:
+    """Clear a persisted in-progress state when a worker starts.
+
+    No duplicate job can have survived *inside* this new worker process. A
+    queued Redis job may still start later and will publish a fresh status.
+    """
+    status = get_status()
+    if not status.get("running"):
+        return False
+    set_status(
+        running=False,
+        phase="failed",
+        error="Duplicate scan was interrupted by a worker restart.",
+    )
+    return True
 
 
 def stored_groups() -> list[list[Pin]]:
@@ -87,6 +138,15 @@ def _hash_pin(args: tuple) -> tuple:
     return pid, h.sha256, h.phash, h.size
 
 
+def _hash_batch(batch: list[tuple]) -> list[tuple]:
+    """Hash one small batch in a child process.
+
+    Futures complete out of order, so one slow file no longer blocks progress
+    from every faster batch behind it.
+    """
+    return [_hash_pin(item) for item in batch]
+
+
 def _pins_needing_hashes() -> list[tuple]:
     storage = get_storage()
     todo: list[tuple] = []
@@ -94,8 +154,13 @@ def _pins_needing_hashes() -> list[tuple]:
         for p in Pin.select():
             is_image = p.media_type == "image"
             if is_image:
-                # Up to date only with both an exact and a valid perceptual hash.
-                if p.content_sha256 and p.phash and len(p.phash) == dedup.PHASH_HEX_LEN:
+                # SHA present + no phash means Pillow already tried and found
+                # no useful visual hash (flat/corrupt image). Do not re-read it
+                # on every scheduled scan. A non-empty legacy hash is refreshed
+                # when its length differs from the current 256-bit format.
+                if p.content_sha256 and (
+                    not p.phash or len(p.phash) == dedup.PHASH_HEX_LEN
+                ):
                     continue
             elif p.content_sha256:
                 continue  # videos need only the exact sha256
@@ -107,38 +172,69 @@ def _pins_needing_hashes() -> list[tuple]:
 
 def recompute() -> dict:
     """Hash pins missing/stale hashes, cluster them, persist each dup_group."""
-    from concurrent.futures import ProcessPoolExecutor
-
-    todo = _pins_needing_hashes()
-    hashed = 0
-    if todo:
-        set_status(running=True, phase="hashing", cur=0, total=len(todo))
-        workers = min(len(todo), (os.cpu_count() or 2))
-        results = []
-        done = 0
-        last = 0.0
-        with ProcessPoolExecutor(max_workers=workers) as ex:
-            for r in ex.map(_hash_pin, todo, chunksize=16):
-                results.append(r)
-                done += 1
-                tick = time.monotonic()
-                if tick - last >= 0.3:
-                    last = tick
-                    set_status(
-                        running=True, phase="hashing", cur=done, total=len(todo)
+    set_status(running=True, phase="preparing")
+    try:
+        todo = _pins_needing_hashes()
+        hashed = 0
+        results: list[tuple] = []
+        if todo:
+            set_status(running=True, phase="hashing", cur=0, total=len(todo))
+            workers = min(len(todo), (os.cpu_count() or 2))
+            batches = [
+                todo[i:i + 16]
+                for i in range(0, len(todo), 16)
+            ]
+            done = 0
+            last = 0.0
+            with ProcessPoolExecutor(max_workers=workers) as executor:
+                pending = {
+                    executor.submit(_hash_batch, batch)
+                    for batch in batches
+                }
+                while pending:
+                    completed, pending = wait(
+                        pending,
+                        timeout=0.5,
+                        return_when=FIRST_COMPLETED,
                     )
-        with transaction():
-            for pid, sha, ph, size in results:
-                updated = (
-                    Pin.update(content_sha256=sha, phash=ph, file_size=size)
-                    .where(Pin.id == pid)
-                    .execute()
-                )
-                hashed += updated
+                    for future in completed:
+                        batch_results = future.result()
+                        results.extend(batch_results)
+                        done += len(batch_results)
+                    tick = time.monotonic()
+                    # Keep the heartbeat fresh even when one remaining batch is
+                    # hashing a very large video and the numeric count cannot
+                    # advance yet.
+                    if done == len(todo) or tick - last >= 0.5:
+                        last = tick
+                        set_status(
+                            running=True, phase="hashing", cur=done, total=len(todo)
+                        )
 
-    set_status(running=True, phase="grouping")
-    with transaction():
-        rows = list(Pin.select())  # images + videos; videos group by sha
+            set_status(running=True, phase="saving", cur=0, total=len(results))
+            for start in range(0, len(results), _WRITE_BATCH_SIZE):
+                batch = results[start:start + _WRITE_BATCH_SIZE]
+                with transaction():
+                    for pid, sha, ph, size in batch:
+                        hashed += (
+                            Pin.update(
+                                content_sha256=sha,
+                                phash=ph,
+                                file_size=size,
+                            )
+                            .where(Pin.id == pid)
+                            .execute()
+                        )
+                set_status(
+                    running=True,
+                    phase="saving",
+                    cur=min(start + len(batch), len(results)),
+                    total=len(results),
+                )
+
+        set_status(running=True, phase="grouping", cur=0, total=0)
+        with connection():
+            rows = list(Pin.select())  # images + videos; videos group by sha
         items = [
             {
                 "id": p.id,
@@ -151,23 +247,44 @@ def recompute() -> dict:
         ]
         groups = dedup.group_duplicates(items)
         dup_of: dict[int, int] = {}
-        for g in groups:
-            gid = min(it["id"] for it in g)
-            for it in g:
-                dup_of[it["id"]] = gid
-        changed = 0
-        for p in rows:
-            new = dup_of.get(p.id)
-            if p.dup_group != new:
-                Pin.update(dup_group=new).where(Pin.id == p.id).execute()
-                changed += 1
+        for group in groups:
+            gid = min(item["id"] for item in group)
+            for item in group:
+                dup_of[item["id"]] = gid
 
-    removable = len(dup_of) - len(groups)  # extra copies beyond one-per-group
-    set_status(
-        running=False, phase="done", groups=len(groups),
-        removable=removable, at=now().isoformat(),
-    )
-    logger.info(
-        "dedup: hashed %s, %s group(s), %s pin(s) updated", hashed, len(groups), changed
-    )
-    return {"hashed": hashed, "groups": len(groups), "removable": removable}
+        changed = 0
+        set_status(running=True, phase="grouping", cur=0, total=len(rows))
+        for start in range(0, len(rows), _WRITE_BATCH_SIZE):
+            batch = rows[start:start + _WRITE_BATCH_SIZE]
+            with transaction():
+                for pin in batch:
+                    new = dup_of.get(pin.id)
+                    if pin.dup_group != new:
+                        Pin.update(dup_group=new).where(Pin.id == pin.id).execute()
+                        changed += 1
+            set_status(
+                running=True,
+                phase="grouping",
+                cur=min(start + len(batch), len(rows)),
+                total=len(rows),
+            )
+
+        removable = len(dup_of) - len(groups)
+        set_status(
+            running=False,
+            phase="done",
+            groups=len(groups),
+            removable=removable,
+            at=now().isoformat(),
+        )
+        logger.info(
+            "dedup: hashed %s, %s group(s), %s pin(s) updated",
+            hashed,
+            len(groups),
+            changed,
+        )
+        return {"hashed": hashed, "groups": len(groups), "removable": removable}
+    except Exception as exc:
+        set_status(running=False, phase="failed", error=str(exc))
+        logger.exception("duplicate scan failed")
+        raise

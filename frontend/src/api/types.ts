@@ -95,8 +95,10 @@ export interface DedupStatus {
   phase?: string;
   cur?: number;
   total?: number;
+  error?: string;
   groups?: number;
   removable: number;
   total_groups: number;
   at?: string;
+  updated_at?: string;
 }
