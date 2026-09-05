@@ -53,7 +53,7 @@ export function NoticeProvider({ children }: { children: React.ReactNode }) {
     <NoticeContext.Provider value={value}>
       {children}
       <Modal isOpen={notice !== null} onOpenChange={(open) => !open && setNotice(null)}>
-        <Modal.Backdrop>
+        <Modal.Backdrop className="backdrop-blur-sm">
           <Modal.Container size="sm">
             <Modal.Dialog>
               <Modal.Header>

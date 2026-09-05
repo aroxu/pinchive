@@ -37,7 +37,7 @@ export function ConfirmDialog({
       // Dismissing mid-request would hide the only feedback the user has.
       onOpenChange={(open) => !open && !isBusy && onClose()}
     >
-      <Modal.Backdrop>
+      <Modal.Backdrop className="backdrop-blur-sm">
         <Modal.Container size="sm">
           <Modal.Dialog>
             <Modal.Header>

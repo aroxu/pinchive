@@ -44,7 +44,7 @@ export function AddBoardDialog({
 
   return (
     <Modal isOpen={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <Modal.Backdrop>
+      <Modal.Backdrop className="backdrop-blur-sm">
         <Modal.Container size="md">
           <Modal.Dialog>
             <Modal.Header>
