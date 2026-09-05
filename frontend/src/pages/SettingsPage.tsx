@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { api } from "../api/client";
 import type { Credential } from "../api/types";
+import { useNotice } from "../components/NoticeDialog";
 import { ErrorNote, Loading, PageHeader, StatusChip } from "../components/common";
 import { useQuery } from "../hooks/useQuery";
 import { LANG_NAMES, SUPPORTED, useI18n, type Locale, type MessageKey } from "../i18n";
@@ -49,6 +50,7 @@ interface SettingField {
 
 export function SettingsPage() {
   const { t, locale, setLocale } = useI18n();
+  const { showError } = useNotice();
   const settings = useQuery(() => api.settings(), []);
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState(false);
@@ -71,6 +73,19 @@ export function SettingsPage() {
       settings.setData(payload);
       setSaved(true);
       window.setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      showError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const syncAll = async () => {
+    setBusy(true);
+    try {
+      await api.syncAll();
+    } catch (err) {
+      showError(err);
     } finally {
       setBusy(false);
     }
@@ -177,7 +192,7 @@ export function SettingsPage() {
               <Button
                 variant="ghost"
                 isDisabled={busy}
-                onPress={() => void api.syncAll()}
+                onPress={() => void syncAll()}
               >
                 {t("settings.sync_all")}
               </Button>
@@ -196,22 +211,21 @@ export function SettingsPage() {
 
 function SessionsCard() {
   const { t } = useI18n();
+  const { showError } = useNotice();
   const creds = useQuery(() => api.credentials(), []);
   const [name, setName] = useState("");
   const [cookies, setCookies] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const add = async () => {
     setBusy(true);
-    setError(null);
     try {
       await api.addCredential({ name, cookies });
       setName("");
       setCookies("");
       creds.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      showError(err);
     } finally {
       setBusy(false);
     }
@@ -259,8 +273,6 @@ function SessionsCard() {
             {t("settings.cred_add")}
           </Button>
         </div>
-
-        {error ? <p className="text-sm text-red-300">{error}</p> : null}
       </Card.Content>
     </Card>
   );
@@ -274,6 +286,7 @@ function CredentialRow({
   onChanged: () => void;
 }) {
   const { t } = useI18n();
+  const { showError } = useNotice();
   const [busy, setBusy] = useState(false);
 
   const act = async (fn: () => Promise<unknown>) => {
@@ -281,6 +294,8 @@ function CredentialRow({
     try {
       await fn();
       onChanged();
+    } catch (err) {
+      showError(err);
     } finally {
       setBusy(false);
     }

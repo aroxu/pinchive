@@ -143,6 +143,9 @@ const en = {
   "common.error": "Something went wrong.",
   "common.page": "Page {page} of {pages}",
   "common.never": "never",
+  "common.notice_title": "Notice",
+  "common.error_title": "Something went wrong",
+  "common.ok": "OK",
 };
 
 type Catalogue = typeof en;
@@ -286,6 +289,9 @@ const ko: Record<MessageKey, string> = {
   "common.error": "문제가 발생했습니다.",
   "common.page": "{page} / {pages} 페이지",
   "common.never": "없음",
+  "common.notice_title": "알림",
+  "common.error_title": "작업을 완료하지 못했습니다",
+  "common.ok": "확인",
 };
 
 export const CATALOGUES: Record<Locale, Record<MessageKey, string>> = { en, ko };

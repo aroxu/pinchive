@@ -7,6 +7,7 @@ import { api } from "../api/client";
 import type { Board } from "../api/types";
 import { AddBoardDialog } from "../components/AddBoardDialog";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { useNotice } from "../components/NoticeDialog";
 import {
   EmptyState,
   ErrorNote,
@@ -136,6 +137,7 @@ export function BoardsPage() {
 
 function BoardCard({ board, onChanged }: { board: Board; onChanged: () => void }) {
   const { t } = useI18n();
+  const { showError } = useNotice();
   const [busy, setBusy] = useState(false);
   const [autoResync, setAutoResync] = useState(board.auto_resync);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -143,7 +145,7 @@ function BoardCard({ board, onChanged }: { board: Board; onChanged: () => void }
 
   useEffect(() => setAutoResync(board.auto_resync), [board.auto_resync]);
 
-  const act = async (fn: () => Promise<unknown>) => {
+  const act = async (fn: () => Promise<unknown>, inlineError = false) => {
     setBusy(true);
     setActionError(null);
     try {
@@ -151,8 +153,11 @@ function BoardCard({ board, onChanged }: { board: Board; onChanged: () => void }
       onChanged();
       return true;
     } catch (err) {
-      // Silence here is what made a failed delete look like a dead button.
-      setActionError(err instanceof Error ? err.message : String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      // A failed delete stays in its confirmation dialog; other actions use
+      // the application-owned notice modal instead of a native browser alert.
+      if (inlineError) setActionError(message);
+      else showError(err);
       return false;
     } finally {
       setBusy(false);
@@ -162,7 +167,7 @@ function BoardCard({ board, onChanged }: { board: Board; onChanged: () => void }
   const deleteBoard = async () => {
     // Keep the dialog open on failure so the reason is visible where the user
     // is looking; closing it is what made a failed delete feel like a no-op.
-    if (await act(() => api.deleteBoard(board.id))) setConfirmingDelete(false);
+    if (await act(() => api.deleteBoard(board.id), true)) setConfirmingDelete(false);
   };
 
   const toggleAutoResync = async (selected: boolean) => {
@@ -176,8 +181,9 @@ function BoardCard({ board, onChanged }: { board: Board; onChanged: () => void }
       const updated = await api.toggleAutoResync(board.id);
       setAutoResync(updated.auto_resync);
       onChanged();
-    } catch {
+    } catch (err) {
       setAutoResync(previous);
+      showError(err);
     } finally {
       setBusy(false);
     }
@@ -236,12 +242,6 @@ function BoardCard({ board, onChanged }: { board: Board; onChanged: () => void }
           {board.last_error ? (
             <p className="truncate text-xs text-red-300" title={board.last_error}>
               {board.last_error}
-            </p>
-          ) : null}
-
-          {actionError ? (
-            <p className="text-xs text-red-300" title={actionError}>
-              {actionError}
             </p>
           ) : null}
 

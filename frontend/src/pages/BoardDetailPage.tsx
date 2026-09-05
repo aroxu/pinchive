@@ -7,6 +7,7 @@ import { api } from "../api/client";
 import type { Pin } from "../api/types";
 import { MediaLightbox } from "../components/MediaLightbox";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { useNotice } from "../components/NoticeDialog";
 import { PinCard } from "../components/PinCard";
 import {
   EmptyState,
@@ -39,6 +40,7 @@ type ViewSize = keyof typeof VIEW_WIDTH;
 
 export function BoardDetailPage() {
   const { t } = useI18n();
+  const { showError } = useNotice();
   const { boardId } = useParams();
   const id = Number(boardId);
 
@@ -53,6 +55,7 @@ export function BoardDetailPage() {
   const [tagName, setTagName] = useState("");
   const [logOpen, setLogOpen] = useState(false);
   const [confirmingBulkDelete, setConfirmingBulkDelete] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   const board = useQuery(() => api.board(id), [id], {
     pollMs: 4000,
@@ -81,10 +84,29 @@ export function BoardDetailPage() {
 
   const bulk = async (action: string) => {
     if (selectedIds.length === 0) return;
-    await api.bulkPins({ pin_ids: selectedIds, name: tagName, action });
-    setSelected(new Set());
-    pins.refresh();
-    board.refresh();
+    setBusy(true);
+    try {
+      await api.bulkPins({ pin_ids: selectedIds, name: tagName, action });
+      setSelected(new Set());
+      pins.refresh();
+      board.refresh();
+    } catch (err) {
+      showError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resync = async (full = false) => {
+    setBusy(true);
+    try {
+      await api.resyncBoard(id, full);
+      board.refresh();
+    } catch (err) {
+      showError(err);
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -107,16 +129,16 @@ export function BoardDetailPage() {
             <Button
               size="sm"
               variant="ghost"
-              isDisabled={active}
-              onPress={() => void api.resyncBoard(id).then(board.refresh)}
+              isDisabled={active || busy}
+              onPress={() => void resync()}
             >
               {t("boards.resync")}
             </Button>
             <Button
               size="sm"
               variant="ghost"
-              isDisabled={active}
-              onPress={() => void api.resyncBoard(id, true).then(board.refresh)}
+              isDisabled={active || busy}
+              onPress={() => void resync(true)}
             >
               {t("boards.full_resync")}
             </Button>
@@ -191,15 +213,16 @@ export function BoardDetailPage() {
                 className="w-40"
                 onChange={(e) => setTagName(e.target.value)}
               />
-              <Button size="sm" variant="ghost" onPress={() => void bulk("add")}>
+              <Button size="sm" variant="ghost" isDisabled={busy} onPress={() => void bulk("add")}>
                 {t("board.bulk_tag")}
               </Button>
-              <Button size="sm" variant="ghost" onPress={() => void bulk("remove")}>
+              <Button size="sm" variant="ghost" isDisabled={busy} onPress={() => void bulk("remove")}>
                 {t("board.bulk_untag")}
               </Button>
               <Button
                 size="sm"
                 variant="danger"
+                isDisabled={busy}
                 onPress={() => setConfirmingBulkDelete(true)}
               >
                 {t("board.bulk_delete")}
@@ -276,6 +299,7 @@ export function BoardDetailPage() {
         title={t("board.bulk_delete")}
         message={t("board.bulk_delete_confirm", { n: selectedIds.length })}
         confirmLabel={t("board.bulk_delete")}
+        isBusy={busy}
         onConfirm={() => {
           setConfirmingBulkDelete(false);
           void bulk("delete");

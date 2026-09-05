@@ -6,12 +6,14 @@ import { api } from "../api/client";
 import type { DedupStatus, Pin } from "../api/types";
 import { MediaLightbox } from "../components/MediaLightbox";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { useNotice } from "../components/NoticeDialog";
 import { EmptyState, ErrorNote, Loading, PageHeader, Pager } from "../components/common";
 import { useQuery } from "../hooks/useQuery";
 import { useI18n } from "../i18n";
 
 export function DuplicatesPage() {
   const { t } = useI18n();
+  const { showError } = useNotice();
   const [page, setPage] = useState(1);
   const [preview, setPreview] = useState<Pin | null>(null);
   const [busy, setBusy] = useState(false);
@@ -40,6 +42,8 @@ export function DuplicatesPage() {
     try {
       await fn();
       refreshAll();
+    } catch (err) {
+      showError(err);
     } finally {
       setBusy(false);
     }
