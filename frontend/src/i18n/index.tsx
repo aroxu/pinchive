@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -55,12 +56,15 @@ function interpolate(template: string, vars?: Vars): string {
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>(detectLocale);
 
+  useEffect(() => {
+    document.documentElement.lang = locale;
+  }, [locale]);
+
   const setLocale = useCallback((next: Locale) => {
     setLocaleState(next);
     // Mirror the choice into the cookie the server reads, so a full reload (or
     // a request that bypasses the SPA) keeps the same language.
     document.cookie = `lang=${next}; Max-Age=31536000; Path=/; SameSite=Lax`;
-    document.documentElement.lang = next;
   }, []);
 
   const value = useMemo<I18nValue>(() => {
