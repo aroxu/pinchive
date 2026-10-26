@@ -125,7 +125,7 @@ async def _resume_interrupted(ctx: dict) -> None:
         return
     ids = await _run(board_service.interrupted_board_ids)
     for board_id in ids:
-        await _run(board_service.mark_queued, board_id)
+        await _run(board_service.mark_queued, board_id, force_full=None)
         await pool.enqueue_job("download_board", board_id)
     if ids:
         logger.info("resuming %s interrupted board(s): %s", len(ids), ids)

@@ -171,6 +171,7 @@ def test_toggle_auto_resync(client):
 
 def test_incremental_vs_forced_resync_enqueue(client):
     normal_id = _mk_board(slug="inc")
+    Board.update(force_full_sync=True).where(Board.id == normal_id).execute()
     full_id = _mk_board(slug="full")
     pool = FakePool()
     original = client.app.state.arq

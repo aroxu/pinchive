@@ -18,7 +18,7 @@ from app.services.board_service import (
     merge_checkpoint,
 )
 from app.services.dedup_service import recompute
-from app.worker import _cron_dispatch, _resume_interrupted, resync_all_boards
+from app.worker import _cron_dispatch, _resume_interrupted, download_board, resync_all_boards
 
 settings = get_settings()
 
@@ -99,6 +99,7 @@ def _mk(status, auto):
 # --------------------------------------------------------------------------- #
 def test_resync_enqueues_only_idle_opted_in_boards():
     done_on = _mk(BoardStatus.done, True)
+    Board.update(force_full_sync=True).where(Board.id == done_on).execute()
     error_on = _mk(BoardStatus.error, True)
     partial_on = _mk(BoardStatus.partial, True)
     _mk(BoardStatus.downloading, True)   # busy -> skip
@@ -111,6 +112,7 @@ def test_resync_enqueues_only_idle_opted_in_boards():
     assert res["enqueued"] == 3
     assert all(name == "download_board" for name, _ in pool.jobs)
     assert {args[0] for _, args in pool.jobs} == {done_on, error_on, partial_on}
+    assert Board.get_by_id(done_on).force_full_sync is False
 
 
 def test_resync_no_queue():
@@ -299,6 +301,43 @@ def test_resume_interrupted_reenqueues_stuck_boards():
     pool = _FakePool()
     asyncio.run(_resume_interrupted({"redis": pool}))
     assert {args[0] for _, args in pool.jobs} == {d, q, p}
+
+
+@pytest.mark.parametrize(
+    "status", [BoardStatus.downloading, BoardStatus.queued, BoardStatus.pending]
+)
+@pytest.mark.parametrize("force_full", [False, True])
+def test_resume_interrupted_preserves_sync_mode(monkeypatch, status, force_full):
+    from app.services.downloader import DownloadResult
+
+    bid = _mk(status, False)
+    checkpoint = ["100", "99"]
+    Board.update(sync_checkpoint=json.dumps(checkpoint), force_full_sync=force_full).where(
+        Board.id == bid
+    ).execute()
+
+    pool = _FakePool()
+    asyncio.run(_resume_interrupted({"redis": pool}))
+
+    board = Board.get_by_id(bid)
+    assert board.status == BoardStatus.queued.value
+    assert board.force_full_sync is force_full
+    assert decode_checkpoint(board.sync_checkpoint) == checkpoint
+    assert pool.jobs == [("download_board", (bid,))]
+
+    captured = {}
+
+    def fake_download(url, dest, **kwargs):
+        captured["stop_pin_ids"] = kwargs["stop_pin_ids"]
+        return DownloadResult(dest=dest)
+
+    monkeypatch.setattr(sync_service, "run_download", fake_download)
+    _, args = pool.jobs[0]
+    result = asyncio.run(download_board({}, *args))
+
+    assert result["mode"] == ("full" if force_full else "incremental")
+    assert captured["stop_pin_ids"] == (set() if force_full else set(checkpoint))
+    assert Board.get_by_id(bid).force_full_sync is False
 
 
 # --------------------------------------------------------------------------- #

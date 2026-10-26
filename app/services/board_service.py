@@ -199,16 +199,19 @@ def create_board(url: str, *, credential_id: int | None, auto: bool = False) -> 
         )
 
 
-def mark_queued(board_id: int, *, force_full: bool = False) -> Board | None:
+def mark_queued(board_id: int, *, force_full: bool | None = False) -> Board | None:
     """Flip a board to queued ahead of enqueueing. ``force_full`` is persisted so
-    a worker restart resumes the full scan instead of the incremental one."""
+    a worker restart resumes the full scan instead of the incremental one.
+    Pass ``None`` when resuming to preserve the previously requested mode.
+    """
     with transaction():
         board = Board.get_or_none(Board.id == board_id)
         if board is None:
             return None
         board.status = BoardStatus.queued.value
         board.last_error = None
-        board.force_full_sync = force_full
+        if force_full is not None:
+            board.force_full_sync = force_full
         board.updated_at = now()
         board.save()
         return board
