@@ -94,7 +94,7 @@ cookies for that credential.
   a tag, or delete them in one go from the board's bulk bar.
 - **Duplicate detection.** The **Duplicates** page finds the same image across
   pins/boards — both exact byte matches (SHA-256) and visually identical
-  re-encodes/resizes (64-bit perceptual dHash, Pillow). Each group marks the
+  re-encodes/resizes (256-bit perceptual dHash, Pillow). Each group marks the
   highest-resolution copy **KEEP** and pre-selects the rest; one click removes
   the extra files from disk. Detection is non-destructive until you confirm.
 - **Pagination.** Board list, pin grids, and the Duplicates page paginate
@@ -134,6 +134,11 @@ npm run dev                                        # :5173, proxies /api + /medi
 `npm run dev` gives hot reload against the local API. To serve the production
 bundle from uvicorn instead (what the image does), run `npm run build` once —
 FastAPI picks up `frontend/dist` automatically.
+
+Run `cd frontend && npm test && npm run build` before `pytest -q` so the API
+tests can verify the built SPA and its asset cache headers. `ruff check .` and
+`pip check` are the remaining backend checks. The image-publishing workflow
+runs these checks before publishing either architecture to GHCR.
 
 ## Configuration
 

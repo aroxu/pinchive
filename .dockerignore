@@ -7,6 +7,7 @@ __pycache__
 .pytest_cache
 .ruff_cache
 /data
+.devdata
 .env
 # The frontend is built inside the image; never ship the host's install or
 # a stale local bundle into the build context.

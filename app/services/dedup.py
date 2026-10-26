@@ -2,11 +2,11 @@
 
 Two signals per image:
   * content_sha256 — exact byte-for-byte identity.
-  * phash — a 64-bit perceptual dHash (as 16 hex chars). Survives re-encoding /
+  * phash — a 256-bit perceptual dHash (as 64 hex chars). Survives re-encoding /
     resizing, so the *same picture* pinned to different pins (different pin ids,
     possibly different files) still collides within a small Hamming distance.
 
-dHash is computed with Pillow only (no numpy): shrink to 9x8 grayscale and emit
+dHash is computed with Pillow only (no numpy): shrink to 17x16 grayscale and emit
 one bit per horizontal adjacent-pixel comparison.
 """
 
